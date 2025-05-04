@@ -1,0 +1,304 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "environmentName": {
+            "type": "string",
+            "metadata": {
+                "description": "Environment name prefix"
+            }
+        },
+        "location": {
+            "type": "string",
+            "metadata": {
+                "description": "Primary deployment location"
+            }
+        },
+        "iotHubName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the IoT Hub"
+            }
+        },
+        "simulatorVmCount": {
+            "type": "int",
+            "defaultValue": 1,
+            "minValue": 1,
+            "maxValue": 10,
+            "metadata": {
+                "description": "Number of VMs to deploy for simulation"
+            }
+        },
+        "simulatorVmSize": {
+            "type": "string",
+            "defaultValue": "Standard_D2s_v3",
+            "allowedValues": [
+                "Standard_D2s_v3",
+                "Standard_D4s_v3",
+                "Standard_D8s_v3"
+            ],
+            "metadata": {
+                "description": "Size of the simulator VMs"
+            }
+        },
+        "simulatorAdminUsername": {
+            "type": "string",
+            "defaultValue": "simulatoradmin",
+            "metadata": {
+                "description": "Username for the simulator VMs"
+            }
+        },
+        "simulatorAdminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Password for the simulator VMs"
+            }
+        },
+        "deviceCount": {
+            "type": "int",
+            "defaultValue": 1000,
+            "minValue": 10,
+            "maxValue": 100000,
+            "metadata": {
+                "description": "Number of simulated devices"
+            }
+        }
+    },
+    "variables": {
+        "simulatorVmName": "[concat(parameters('environmentName'), '-sim-vm')]",
+        "simulatorStorageName": "[concat(replace(parameters('environmentName'), '-', ''), 'simstor')]",
+        "simulatorVnetName": "[concat(parameters('environmentName'), '-sim-vnet')]",
+        "simulatorSubnetName": "simulator-subnet",
+        "simulatorNsgName": "[concat(parameters('environmentName'), '-sim-nsg')]",
+        "simulatorPipName": "[concat(parameters('environmentName'), '-sim-pip')]",
+        "simulatorNicName": "[concat(parameters('environmentName'), '-sim-nic')]",
+        "simulatorDeviceScriptUrl": "[concat('https://raw.githubusercontent.com/azure-samples/iot-device-simulator/main/scripts/setup.sh')]",
+        "simulatorDevicePerVm": "[div(parameters('deviceCount'), parameters('simulatorVmCount'))]",
+        "keyVaultName": "[concat(parameters('environmentName'), '-kv')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2021-03-01",
+            "name": "[variables('simulatorNsgName')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "SSH",
+                        "properties": {
+                            "priority": 1000,
+                            "protocol": "Tcp",
+                            "access": "Allow",
+                            "direction": "Inbound",
+                            "sourceAddressPrefix": "*",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRange": "22"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2021-03-01",
+            "name": "[variables('simulatorVnetName')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('simulatorNsgName'))]"
+            ],
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "10.10.0.0/16"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('simulatorSubnetName')]",
+                        "properties": {
+                            "addressPrefix": "10.10.0.0/24",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('simulatorNsgName'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2021-06-01",
+            "name": "[variables('simulatorStorageName')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "kind": "StorageV2"
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2021-03-01",
+            "name": "[concat(variables('simulatorPipName'), copyIndex())]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "Standard"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "Static",
+                "dnsSettings": {
+                    "domainNameLabel": "[concat(toLower(parameters('environmentName')), '-sim-', copyIndex())]"
+                }
+            },
+            "copy": {
+                "name": "pipCopy",
+                "count": "[parameters('simulatorVmCount')]"
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2021-03-01",
+            "name": "[concat(variables('simulatorNicName'), copyIndex())]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('simulatorVnetName'))]",
+                "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('simulatorPipName'), copyIndex()))]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('simulatorPipName'), copyIndex()))]"
+                            },
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('simulatorVnetName'), variables('simulatorSubnetName'))]"
+                            }
+                        }
+                    }
+                ]
+            },
+            "copy": {
+                "name": "nicCopy",
+                "count": "[parameters('simulatorVmCount')]"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2021-07-01",
+            "name": "[concat(variables('simulatorVmName'), copyIndex())]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('simulatorNicName'), copyIndex()))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('simulatorStorageName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[parameters('simulatorVmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[concat(variables('simulatorVmName'), copyIndex())]",
+                    "adminUsername": "[parameters('simulatorAdminUsername')]",
+                    "adminPassword": "[parameters('simulatorAdminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "18.04-LTS",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "createOption": "FromImage",
+                        "managedDisk": {
+                            "storageAccountType": "Premium_LRS"
+                        }
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('simulatorNicName'), copyIndex()))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": true,
+                        "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('simulatorStorageName'))).primaryEndpoints.blob]"
+                    }
+                }
+            },
+            "copy": {
+                "name": "vmCopy",
+                "count": "[parameters('simulatorVmCount')]"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "apiVersion": "2021-07-01",
+            "name": "[concat(variables('simulatorVmName'), copyIndex(), '/setup-simulator')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines', concat(variables('simulatorVmName'), copyIndex()))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "CustomScript",
+                "typeHandlerVersion": "2.1",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/demos/ubuntu-desktop-gnome/install_desktop.sh"
+                    ],
+                    "commandToExecute": "[concat('bash install_desktop.sh && sudo apt-get update && sudo apt-get install -y git nodejs npm && git clone https://github.com/Azure-Samples/azure-iot-samples-node.git && cd azure-iot-samples-node/iot-hub/Samples/device && npm install && node simulatedDevice.js \"', listKeys(resourceId('Microsoft.Devices/IotHubs', parameters('iotHubName')), '2021-07-01').value[0].primaryKey, '\" ', parameters('iotHubName'), ' ', variables('simulatorDevicePerVm'), ' ', copyIndex())]"
+                }
+            },
+            "copy": {
+                "name": "extensionCopy",
+                "count": "[parameters('simulatorVmCount')]"
+            }
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "apiVersion": "2019-09-01",
+            "name": "[concat(variables('keyVaultName'), '/SimulatorVmPassword')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines', concat(variables('simulatorVmName'), '0'))]"
+            ],
+            "properties": {
+                "value": "[parameters('simulatorAdminPassword')]"
+            }
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "apiVersion": "2019-09-01",
+            "name": "[concat(variables('keyVaultName'), '/SimulatorVmUsername')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines', concat(variables('simulatorVmName'), '0'))]"
+            ],
+            "properties": {
+                "value": "[parameters('simulatorAdminUsername')]"
+            }
+        }
+    ],
+    "outputs": {
+        "simulatorVmFqdns": {
+            "type": "array",
+            "copy": {
+                "count": "[parameters('simulatorVmCount')]",
+                "input": "[reference(resourceId('Microsoft.Network/publicIPAddresses', concat(variables('simulatorPipName'), copyIndex()))).dnsSettings.fqdn]"
+            }
+        },
+        "simulatorVmIps": {
+            "type": "array",
+            "copy": {
+                "count": "[parameters('simulatorVmCount')]",
+                "input": "[reference(resourceId('Microsoft.Network/publicIPAddresses', concat(variables('simulatorPipName'), copyIndex()))).ipAddress]"
+            }
+        }
+    }
+}

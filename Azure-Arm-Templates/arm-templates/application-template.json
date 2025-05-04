@@ -1,0 +1,466 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "environmentName": {
+            "type": "string",
+            "metadata": {
+                "description": "Environment name prefix"
+            }
+        },
+        "location": {
+            "type": "string",
+            "metadata": {
+                "description": "Primary deployment location"
+            }
+        },
+        "digitalTwinsName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Digital Twins instance"
+            }
+        },
+        "iotHubName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the IoT Hub"
+            }
+        },
+        "functionAppName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Function App"
+            }
+        },
+        "timeSeriesInsightsName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Time Series Insights instance"
+            }
+        },
+        "cosmosDbAccountName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Cosmos DB account"
+            }
+        },
+        "administratorLogin": {
+            "type": "string",
+            "metadata": {
+                "description": "The administrator login for Azure SQL"
+            }
+        },
+        "administratorLoginPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "The administrator password for Azure SQL"
+            }
+        }
+    },
+    "variables": {
+        "webAppName": "[concat(parameters('environmentName'), '-webapp')]",
+        "appServicePlanName": "[concat(parameters('environmentName'), '-asp')]",
+        "logicAppName": "[concat(parameters('environmentName'), '-logic')]",
+        "powerBIEmbeddedName": "[concat(parameters('environmentName'), '-powerbi')]",
+        "sqlServerName": "[concat(parameters('environmentName'), '-sql')]",
+        "sqlDatabaseName": "WATAnalytics",
+        "signalRName": "[concat(parameters('environmentName'), '-signalr')]",
+        "apiAppName": "[concat(parameters('environmentName'), '-api')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.DigitalTwins/digitalTwinsInstances",
+            "apiVersion": "2020-12-01",
+            "name": "[parameters('digitalTwinsName')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "publicNetworkAccess": "Enabled"
+            },
+            "identity": {
+                "type": "SystemAssigned"
+            }
+        },
+        {
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2021-02-01",
+            "name": "[variables('appServicePlanName')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "P1v2",
+                "tier": "PremiumV2",
+                "size": "P1v2",
+                "family": "Pv2",
+                "capacity": 1
+            },
+            "kind": "app",
+            "properties": {
+                "perSiteScaling": false,
+                "elasticScaleEnabled": false,
+                "maximumElasticWorkerCount": 1,
+                "isSpot": false,
+                "reserved": false,
+                "isXenon": false,
+                "hyperV": false,
+                "targetWorkerCount": 0,
+                "targetWorkerSizeId": 0,
+                "zoneRedundant": false
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2021-02-01",
+            "name": "[variables('webAppName')]",
+            "location": "[parameters('location')]",
+            "kind": "app",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+                "[resourceId('Microsoft.SignalRService/SignalR', variables('signalRName'))]"
+            ],
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+                "siteConfig": {
+                    "appSettings": [
+                        {
+                            "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                            "value": "[reference(resourceId('Microsoft.Insights/components', concat(parameters('environmentName'), '-appins')), '2020-02-02').InstrumentationKey]"
+                        },
+                        {
+                            "name": "AzureSignalRConnectionString",
+                            "value": "[listKeys(resourceId('Microsoft.SignalRService/SignalR', variables('signalRName')), '2021-06-01-preview').primaryConnectionString]"
+                        },
+                        {
+                            "name": "CosmosDbConnectionString",
+                            "value": "[concat('AccountEndpoint=', reference(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName'))).documentEndpoint, ';AccountKey=', listKeys(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName')), '2021-10-15').primaryMasterKey, ';')]"
+                        },
+                        {
+                            "name": "DigitalTwinsEndpoint",
+                            "value": "[concat('https://', reference(resourceId('Microsoft.DigitalTwins/digitalTwinsInstances', parameters('digitalTwinsName'))).hostName)]"
+                        },
+                        {
+                            "name": "TimeSeriesInsightsEndpoint",
+                            "value": "[reference(resourceId('Microsoft.TimeSeriesInsights/environments', parameters('timeSeriesInsightsName'))).dataAccessFQDN]"
+                        },
+                        {
+                            "name": "IoTHubConnectionString",
+                            "value": "[concat('HostName=', parameters('iotHubName'), '.azure-devices.net;SharedAccessKeyName=iothubowner;SharedAccessKey=', listKeys(resourceId('Microsoft.Devices/IotHubs', parameters('iotHubName')), '2021-07-01').value[0].primaryKey)]"
+                        },
+                        {
+                            "name": "SqlConnectionString",
+                            "value": "[concat('Server=tcp:', variables('sqlServerName'), '.database.windows.net,1433;Initial Catalog=', variables('sqlDatabaseName'), ';Persist Security Info=False;User ID=', parameters('administratorLogin'), ';Password=', parameters('administratorLoginPassword'), ';MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;')]"
+                        }
+                    ],
+                    "alwaysOn": true,
+                    "http20Enabled": true,
+                    "minTlsVersion": "1.2",
+                    "ftpsState": "Disabled",
+                    "use32BitWorkerProcess": false
+                },
+                "clientAffinityEnabled": false,
+                "httpsOnly": true
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2021-02-01",
+            "name": "[variables('apiAppName')]",
+            "location": "[parameters('location')]",
+            "kind": "api",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]"
+            ],
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+                "siteConfig": {
+                    "appSettings": [
+                        {
+                            "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                            "value": "[reference(resourceId('Microsoft.Insights/components', concat(parameters('environmentName'), '-appins')), '2020-02-02').InstrumentationKey]"
+                        },
+                        {
+                            "name": "CosmosDbConnectionString",
+                            "value": "[concat('AccountEndpoint=', reference(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName'))).documentEndpoint, ';AccountKey=', listKeys(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName')), '2021-10-15').primaryMasterKey, ';')]"
+                        },
+                        {
+                            "name": "DigitalTwinsEndpoint",
+                            "value": "[concat('https://', reference(resourceId('Microsoft.DigitalTwins/digitalTwinsInstances', parameters('digitalTwinsName'))).hostName)]"
+                        },
+                        {
+                            "name": "TimeSeriesInsightsEndpoint",
+                            "value": "[reference(resourceId('Microsoft.TimeSeriesInsights/environments', parameters('timeSeriesInsightsName'))).dataAccessFQDN]"
+                        },
+                        {
+                            "name": "IoTHubConnectionString",
+                            "value": "[concat('HostName=', parameters('iotHubName'), '.azure-devices.net;SharedAccessKeyName=iothubowner;SharedAccessKey=', listKeys(resourceId('Microsoft.Devices/IotHubs', parameters('iotHubName')), '2021-07-01').value[0].primaryKey)]"
+                        },
+                        {
+                            "name": "SqlConnectionString",
+                            "value": "[concat('Server=tcp:', variables('sqlServerName'), '.database.windows.net,1433;Initial Catalog=', variables('sqlDatabaseName'), ';Persist Security Info=False;User ID=', parameters('administratorLogin'), ';Password=', parameters('administratorLoginPassword'), ';MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;')]"
+                        }
+                    ],
+                    "alwaysOn": true,
+                    "http20Enabled": true,
+                    "minTlsVersion": "1.2",
+                    "ftpsState": "Disabled",
+                    "use32BitWorkerProcess": false,
+                    "cors": {
+                        "allowedOrigins": [
+                            "[concat('https://', variables('webAppName'), '.azurewebsites.net')]"
+                        ],
+                        "supportCredentials": true
+                    }
+                },
+                "clientAffinityEnabled": false,
+                "httpsOnly": true
+            }
+        },
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2019-05-01",
+            "name": "[variables('logicAppName')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.DigitalTwins/digitalTwinsInstances', parameters('digitalTwinsName'))]"
+            ],
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "state": "Enabled",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "When_a_digital_twins_event_occurs": {
+                            "splitOn": "@triggerBody()",
+                            "type": "ApiConnectionWebhook",
+                            "inputs": {
+                                "body": {
+                                    "properties": {
+                                        "includeDiagnostics": true,
+                                        "servicebus": {
+                                            "connectionString": null,
+                                            "transportType": "amqp"
+                                        }
+                                    }
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['azuredigitaltwins']['connectionId']"
+                                    }
+                                },
+                                "path": "/EventRoute"
+                            }
+                        }
+                    },
+                    "actions": {
+                        "Condition": {
+                            "actions": {
+                                "HTTP_-_SCADA_Integration": {
+                                    "runAfter": {},
+                                    "type": "Http",
+                                    "inputs": {
+                                        "body": {
+                                            "device": "@triggerBody()?['data']?['deviceId']",
+                                            "event": "@triggerBody()?['data']?['eventType']",
+                                            "timestamp": "@triggerBody()?['data']?['timestamp']",
+                                            "value": "@triggerBody()?['data']?['value']"
+                                        },
+                                        "headers": {
+                                            "Content-Type": "application/json"
+                                        },
+                                        "method": "POST",
+                                        "uri": "https://scada-integration/api/events"
+                                    }
+                                }
+                            },
+                            "runAfter": {},
+                            "expression": {
+                                "and": [
+                                    {
+                                        "equals": [
+                                            "@triggerBody()?['data']?['eventType']",
+                                            "valveOperation"
+                                        ]
+                                    }
+                                ]
+                            },
+                            "type": "If"
+                        }
+                    },
+                    "outputs": {}
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "azuredigitaltwins": {
+                                "connectionId": "[resourceId('Microsoft.Web/connections', 'azuredigitaltwins')]",
+                                "connectionName": "azuredigitaltwins",
+                                "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azuredigitaltwins')]"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Sql/servers",
+            "apiVersion": "2021-05-01-preview",
+            "name": "[variables('sqlServerName')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "administratorLogin": "[parameters('administratorLogin')]",
+                "administratorLoginPassword": "[parameters('administratorLoginPassword')]",
+                "version": "12.0",
+                "minimalTlsVersion": "1.2",
+                "publicNetworkAccess": "Enabled"
+            },
+            "resources": [
+                {
+                    "type": "firewallRules",
+                    "apiVersion": "2021-05-01-preview",
+                    "name": "AllowAzureServices",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]"
+                    ],
+                    "properties": {
+                        "startIpAddress": "0.0.0.0",
+                        "endIpAddress": "0.0.0.0"
+                    }
+                },
+                {
+                    "type": "databases",
+                    "apiVersion": "2021-05-01-preview",
+                    "name": "[variables('sqlDatabaseName')]",
+                    "location": "[parameters('location')]",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]"
+                    ],
+                    "sku": {
+                        "name": "S1",
+                        "tier": "Standard"
+                    },
+                    "properties": {
+                        "collation": "SQL_Latin1_General_CP1_CI_AS",
+                        "maxSizeBytes": 268435456000,
+                        "catalogCollation": "SQL_Latin1_General_CP1_CI_AS",
+                        "zoneRedundant": false,
+                        "readScale": "Disabled",
+                        "requestedBackupStorageRedundancy": "Geo",
+                        "isLedgerOn": false
+                    }
+                }
+            ]
+        },
+        {
+            "type": "Microsoft.PowerBIDedicated/capacities",
+            "apiVersion": "2021-01-01",
+            "name": "[variables('powerBIEmbeddedName')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "A1"
+            },
+            "properties": {
+                "administration": {
+                    "members": [
+                        "[concat('service:', parameters('environmentName'), '@microsoft.com')]"
+                    ]
+                },
+                "mode": "Gen2"
+            }
+        },
+        {
+            "type": "Microsoft.SignalRService/SignalR",
+            "apiVersion": "2021-06-01-preview",
+            "name": "[variables('signalRName')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "Standard_S1",
+                "tier": "Standard",
+                "capacity": 1
+            },
+            "properties": {
+                "features": [
+                    {
+                        "flag": "ServiceMode",
+                        "value": "Default",
+                        "properties": {}
+                    }
+                ],
+                "cors": {
+                    "allowedOrigins": [
+                        "[concat('https://', variables('webAppName'), '.azurewebsites.net')]"
+                    ]
+                },
+                "upstream": {},
+                "networkACLs": {
+                    "defaultAction": "Deny",
+                    "publicNetwork": {
+                        "allow": [
+                            "ServerConnection",
+                            "ClientConnection"
+                        ]
+                    },
+                    "privateEndpoints": []
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Authorization/roleAssignments",
+            "apiVersion": "2020-04-01-preview",
+            "name": "[guid(resourceId('Microsoft.DigitalTwins/digitalTwinsInstances', parameters('digitalTwinsName')), variables('webAppName'), 'DigitalTwinsDataOwner')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.DigitalTwins/digitalTwinsInstances', parameters('digitalTwinsName'))]",
+                "[resourceId('Microsoft.Web/sites', variables('webAppName'))]"
+            ],
+            "properties": {
+                "roleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'bcd981a7-7f74-457b-83e1-cceb9e632ffe')]",
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('webAppName')), '2021-02-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+            }
+        },
+        {
+            "type": "Microsoft.Authorization/roleAssignments",
+            "apiVersion": "2020-04-01-preview",
+            "name": "[guid(resourceId('Microsoft.DigitalTwins/digitalTwinsInstances', parameters('digitalTwinsName')), variables('logicAppName'), 'DigitalTwinsDataReader')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.DigitalTwins/digitalTwinsInstances', parameters('digitalTwinsName'))]",
+                "[resourceId('Microsoft.Logic/workflows', variables('logicAppName'))]"
+            ],
+            "properties": {
+                "roleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'd57506d4-4c8d-48b1-8587-93c323f6a5a3')]",
+                "principalId": "[reference(resourceId('Microsoft.Logic/workflows', variables('logicAppName')), '2019-05-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+            }
+        }
+    ],
+    "outputs": {
+        "webAppUrl": {
+            "type": "string",
+            "value": "[concat('https://', reference(resourceId('Microsoft.Web/sites', variables('webAppName'))).defaultHostName)]"
+        },
+        "apiAppUrl": {
+            "type": "string",
+            "value": "[concat('https://', reference(resourceId('Microsoft.Web/sites', variables('apiAppName'))).defaultHostName)]"
+        },
+        "digitalTwinsEndpoint": {
+            "type": "string",
+            "value": "[concat('https://', reference(resourceId('Microsoft.DigitalTwins/digitalTwinsInstances', parameters('digitalTwinsName'))).hostName)]"
+        },
+        "powerBiEmbedUrl": {
+            "type": "string",
+            "value": "[concat('https://app.powerbi.com/groups/', reference(resourceId('Microsoft.PowerBIDedicated/capacities', variables('powerBIEmbeddedName'))).adminMembers[0])]"
+        }
+    }
+}

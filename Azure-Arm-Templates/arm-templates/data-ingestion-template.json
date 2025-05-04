@@ -1,0 +1,470 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "environmentName": {
+            "type": "string",
+            "metadata": {
+                "description": "Environment name prefix"
+            }
+        },
+        "location": {
+            "type": "string",
+            "metadata": {
+                "description": "Primary deployment location"
+            }
+        },
+        "secondaryLocation": {
+            "type": "string",
+            "metadata": {
+                "description": "Secondary deployment location"
+            }
+        },
+        "eventHubsNamespaceName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Event Hubs namespace"
+            }
+        },
+        "iotHubName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the IoT Hub"
+            }
+        }
+    },
+    "variables": {
+        "eventGridTopicName": "[concat(parameters('environmentName'), '-eventgrid')]",
+        "eventGridDomainName": "[concat(parameters('environmentName'), '-eventgrid-domain')]",
+        "eventHubSkuName": "Standard",
+        "eventHubSkuTier": "Standard",
+        "eventHubSkuCapacity": 4,
+        "eventHubAuthRuleName": "RootManageSharedAccessKey",
+        "telemetryHubName": "telemetry",
+        "alertsHubName": "alerts",
+        "commandsHubName": "valve-control",
+        "eventsHubName": "events",
+        "eventGridAlertSubscriptionName": "AlertToLogicApp",
+        "logicAppName": "[concat(parameters('environmentName'), '-valve-alert-processor')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.EventHub/namespaces",
+            "apiVersion": "2021-11-01",
+            "name": "[parameters('eventHubsNamespaceName')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "[variables('eventHubSkuName')]",
+                "tier": "[variables('eventHubSkuTier')]",
+                "capacity": "[variables('eventHubSkuCapacity')]"
+            },
+            "properties": {
+                "isAutoInflateEnabled": true,
+                "maximumThroughputUnits": 20,
+                "zoneRedundant": true
+            }
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('telemetryHubName'))]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces', parameters('eventHubsNamespaceName'))]"
+            ],
+            "properties": {
+                "messageRetentionInDays": 7,
+                "partitionCount": 32,
+                "status": "Active"
+            }
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('alertsHubName'))]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces', parameters('eventHubsNamespaceName'))]"
+            ],
+            "properties": {
+                "messageRetentionInDays": 7,
+                "partitionCount": 8,
+                "status": "Active"
+            }
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('commandsHubName'))]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces', parameters('eventHubsNamespaceName'))]"
+            ],
+            "properties": {
+                "messageRetentionInDays": 1,
+                "partitionCount": 8,
+                "status": "Active"
+            }
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('eventsHubName'))]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces', parameters('eventHubsNamespaceName'))]"
+            ],
+            "properties": {
+                "messageRetentionInDays": 7,
+                "partitionCount": 4,
+                "status": "Active"
+            }
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs/authorizationRules",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('telemetryHubName'), '/listen')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('telemetryHubName'))]"
+            ],
+            "properties": {
+                "rights": [
+                    "Listen"
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs/authorizationRules",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('alertsHubName'), '/listen')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('alertsHubName'))]"
+            ],
+            "properties": {
+                "rights": [
+                    "Listen"
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs/authorizationRules",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('commandsHubName'), '/listen')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('commandsHubName'))]"
+            ],
+            "properties": {
+                "rights": [
+                    "Listen"
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs/authorizationRules",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('eventsHubName'), '/listen')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('eventsHubName'))]"
+            ],
+            "properties": {
+                "rights": [
+                    "Listen"
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs/authorizationRules",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('telemetryHubName'), '/send')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('telemetryHubName'))]"
+            ],
+            "properties": {
+                "rights": [
+                    "Send"
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs/authorizationRules",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('alertsHubName'), '/send')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('alertsHubName'))]"
+            ],
+            "properties": {
+                "rights": [
+                    "Send"
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs/authorizationRules",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('commandsHubName'), '/send')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('commandsHubName'))]"
+            ],
+            "properties": {
+                "rights": [
+                    "Send"
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs/authorizationRules",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('eventsHubName'), '/send')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('eventsHubName'))]"
+            ],
+            "properties": {
+                "rights": [
+                    "Send"
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs/consumergroups",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('telemetryHubName'), '/streamanalytics')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('telemetryHubName'))]"
+            ],
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs/consumergroups",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('telemetryHubName'), '/timeseriesinsights')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('telemetryHubName'))]"
+            ],
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs/consumergroups",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('alertsHubName'), '/alertprocessor')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('alertsHubName'))]"
+            ],
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.EventHub/namespaces/eventhubs/consumergroups",
+            "apiVersion": "2021-11-01",
+            "name": "[concat(parameters('eventHubsNamespaceName'), '/', variables('commandsHubName'), '/valvecontrol')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('commandsHubName'))]"
+            ],
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.EventGrid/topics",
+            "apiVersion": "2022-06-15",
+            "name": "[variables('eventGridTopicName')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "inputSchema": "EventGridSchema",
+                "publicNetworkAccess": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.EventGrid/domains",
+            "apiVersion": "2022-06-15",
+            "name": "[variables('eventGridDomainName')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "inputSchema": "EventGridSchema",
+                "publicNetworkAccess": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2019-05-01",
+            "name": "[variables('logicAppName')]",
+            "location": "[parameters('location')]",
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "When_a_message_is_received_in_a_queue_(auto-complete)": {
+                            "recurrence": {
+                                "frequency": "Minute",
+                                "interval": 1
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['eventhubs']['connectionId']"
+                                    }
+                                },
+                                "method": "get",
+                                "path": "/@{encodeURIComponent('alerts')}/events/batch/head",
+                                "queries": {
+                                    "consumerGroup": "alertprocessor",
+                                    "contentType": "application/json",
+                                    "maximumEventsCount": 50
+                                }
+                            }
+                        }
+                    },
+                    "actions": {
+                        "For_each_alert": {
+                            "foreach": "@triggerBody()",
+                            "actions": {
+                                "HTTP_request_to_IoT_Hub": {
+                                    "runAfter": {},
+                                    "type": "Http",
+                                    "inputs": {
+                                        "method": "POST",
+                                        "uri": "[concat('https://', parameters('iotHubName'), '.azure-devices.net/devices/@{first(skip(split(items('For_each_alert')?['deviceId'], ':'), 1))}/commands/valveOperation?api-version=2020-05-31-preview')]",
+                                        "headers": {
+                                            "Authorization": "@{listKeys(resourceId('Microsoft.Devices/IotHubs', parameters('iotHubName')), '2021-07-01').value[0].primaryKey}",
+                                            "Content-Type": "application/json"
+                                        },
+                                        "body": {
+                                            "commandRequest": {
+                                                "command": "CLOSE",
+                                                "reason": "EMERGENCY_RESPONSE",
+                                                "timestamp": "@{utcNow()}"
+                                            }
+                                        }
+                                    }
+                                },
+                                "Send_event_to_Event_Grid": {
+                                    "runAfter": {
+                                        "HTTP_request_to_IoT_Hub": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "ApiConnection",
+                                    "inputs": {
+                                        "body": [
+                                            {
+                                                "id": "@{guid()}",
+                                                "eventType": "EmergencyValveOperation",
+                                                "subject": "@{items('For_each_alert')?['deviceId']}",
+                                                "eventTime": "@{utcNow()}",
+                                                "data": {
+                                                    "deviceId": "@{items('For_each_alert')?['deviceId']}",
+                                                    "command": "CLOSE",
+                                                    "reason": "EMERGENCY_RESPONSE",
+                                                    "alertType": "@{items('For_each_alert')?['alertType']}",
+                                                    "alertId": "@{items('For_each_alert')?['alertId']}"
+                                                },
+                                                "dataVersion": "1.0"
+                                            }
+                                        ],
+                                        "host": {
+                                            "connection": {
+                                                "name": "@parameters('$connections')['eventgrid']['connectionId']"
+                                            }
+                                        },
+                                        "method": "post",
+                                        "path": "/eventGrid/api/events"
+                                    }
+                                }
+                            },
+                            "runAfter": {},
+                            "type": "Foreach"
+                        }
+                    }
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "eventhubs": {
+                                "connectionId": "[resourceId('Microsoft.Web/connections', 'eventhubs')]",
+                                "connectionName": "eventhubs",
+                                "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/eventhubs')]"
+                            },
+                            "eventgrid": {
+                                "connectionId": "[resourceId('Microsoft.Web/connections', 'eventgrid')]",
+                                "connectionName": "eventgrid",
+                                "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/eventgrid')]"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.EventGrid/eventSubscriptions",
+            "apiVersion": "2022-06-15",
+            "name": "[variables('eventGridAlertSubscriptionName')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.EventGrid/topics', variables('eventGridTopicName'))]",
+                "[resourceId('Microsoft.Logic/workflows', variables('logicAppName'))]"
+            ],
+            "properties": {
+                "destination": {
+                    "endpointType": "WebHook",
+                    "properties": {
+                        "endpointUrl": "[listCallbackUrl(resourceId('Microsoft.Logic/workflows/triggers', variables('logicAppName'), 'manual'), '2019-05-01').value]"
+                    }
+                },
+                "filter": {
+                    "includedEventTypes": [
+                        "Microsoft.Devices.DeviceConnected",
+                        "Microsoft.Devices.DeviceDisconnected",
+                        "Microsoft.Devices.DeviceTelemetry"
+                    ],
+                    "enableAdvancedFilteringOnArrays": true
+                },
+                "eventDeliverySchema": "EventGridSchema",
+                "retryPolicy": {
+                    "maxDeliveryAttempts": 30,
+                    "eventTimeToLiveInMinutes": 1440
+                }
+            },
+            "scope": "[resourceId('Microsoft.EventGrid/topics', variables('eventGridTopicName'))]"
+        },
+        {
+            "type": "Microsoft.Devices/IotHubs/eventHubEndpoints/ConsumerGroups",
+            "apiVersion": "2021-07-01",
+            "name": "[concat(parameters('iotHubName'), '/events/streamanalytics')]",
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.Devices/IotHubs/eventHubEndpoints/ConsumerGroups",
+            "apiVersion": "2021-07-01",
+            "name": "[concat(parameters('iotHubName'), '/events/timeseriesinsights')]",
+            "properties": {}
+        }
+    ],
+    "outputs": {
+        "telemetryHubId": {
+            "type": "string",
+            "value": "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('telemetryHubName'))]"
+        },
+        "alertsHubId": {
+            "type": "string",
+            "value": "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('alertsHubName'))]"
+        },
+        "commandsHubId": {
+            "type": "string",
+            "value": "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('commandsHubName'))]"
+        },
+        "eventsHubId": {
+            "type": "string",
+            "value": "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), variables('eventsHubName'))]"
+        },
+        "eventGridTopicEndpoint": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.EventGrid/topics', variables('eventGridTopicName'))).endpoint]"
+        }
+    }
+}

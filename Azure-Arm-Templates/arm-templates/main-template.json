@@ -1,0 +1,323 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "environmentName": {
+            "type": "string",
+            "defaultValue": "wat-prod",
+            "metadata": {
+                "description": "Environment name prefix for all resources"
+            }
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourceGroup().location]",
+            "metadata": {
+                "description": "Primary deployment location"
+            }
+        },
+        "secondaryLocation": {
+            "type": "string",
+            "defaultValue": "westus2",
+            "metadata": {
+                "description": "Secondary deployment location for redundancy"
+            }
+        },
+        "iotHubSkuName": {
+            "type": "string",
+            "defaultValue": "S1",
+            "allowedValues": [
+                "S1",
+                "S2",
+                "S3"
+            ],
+            "metadata": {
+                "description": "IoT Hub SKU"
+            }
+        },
+        "iotHubCapacityUnits": {
+            "type": "int",
+            "defaultValue": 4,
+            "minValue": 1,
+            "maxValue": 16,
+            "metadata": {
+                "description": "IoT Hub capacity units"
+            }
+        },
+        "cosmosDbThroughput": {
+            "type": "int",
+            "defaultValue": 10000,
+            "minValue": 4000,
+            "maxValue": 100000,
+            "metadata": {
+                "description": "Cosmos DB throughput"
+            }
+        },
+        "administratorLogin": {
+            "type": "string",
+            "metadata": {
+                "description": "The administrator login for Azure SQL"
+            }
+        },
+        "administratorLoginPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "The administrator password for Azure SQL"
+            }
+        },
+        "deployAlerting": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "Deploy alerting and monitoring resources"
+            }
+        },
+        "deviceSimulatorRequired": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "Deploy device simulator for testing"
+            }
+        }
+    },
+    "variables": {
+        "iotHubName": "[concat(parameters('environmentName'), '-iothub')]",
+        "eventHubsNamespaceName": "[concat(parameters('environmentName'), '-evhns')]",
+        "streamAnalyticsName": "[concat(parameters('environmentName'), '-asa')]",
+        "cosmosDbAccountName": "[concat(parameters('environmentName'), '-cosmos')]",
+        "timeSeriesInsightsName": "[concat(parameters('environmentName'), '-tsi')]",
+        "dataLakeStorageName": "[concat(replace(parameters('environmentName'), '-', ''), 'datalake')]",
+        "blobStorageName": "[concat(replace(parameters('environmentName'), '-', ''), 'blob')]",
+        "functionAppName": "[concat(parameters('environmentName'), '-func')]",
+        "appServicePlanName": "[concat(parameters('environmentName'), '-asp')]",
+        "digitalTwinsName": "[concat(parameters('environmentName'), '-twins')]",
+        "appInsightsName": "[concat(parameters('environmentName'), '-appins')]",
+        "logAnalyticsName": "[concat(parameters('environmentName'), '-logs')]",
+        "keyVaultName": "[concat(parameters('environmentName'), '-kv')]",
+        "deviceProvisioningName": "[concat(parameters('environmentName'), '-dps')]",
+        "networkSecurityGroupName": "[concat(parameters('environmentName'), '-nsg')]",
+        "vnetName": "[concat(parameters('environmentName'), '-vnet')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2020-10-01",
+            "name": "networkDeployment",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "relativePath": "network.json"
+                },
+                "parameters": {
+                    "environmentName": {"value": "[parameters('environmentName')]"},
+                    "location": {"value": "[parameters('location')]"},
+                    "networkSecurityGroupName": {"value": "[variables('networkSecurityGroupName')]"},
+                    "vnetName": {"value": "[variables('vnetName')]"}
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2020-10-01",
+            "name": "securityDeployment",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "relativePath": "security.json"
+                },
+                "parameters": {
+                    "environmentName": {"value": "[parameters('environmentName')]"},
+                    "location": {"value": "[parameters('location')]"},
+                    "keyVaultName": {"value": "[variables('keyVaultName')]"}
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2020-10-01",
+            "name": "iotHubDeployment",
+            "dependsOn": [
+                "networkDeployment",
+                "securityDeployment"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "relativePath": "iothub.json"
+                },
+                "parameters": {
+                    "environmentName": {"value": "[parameters('environmentName')]"},
+                    "location": {"value": "[parameters('location')]"},
+                    "secondaryLocation": {"value": "[parameters('secondaryLocation')]"},
+                    "iotHubName": {"value": "[variables('iotHubName')]"},
+                    "deviceProvisioningName": {"value": "[variables('deviceProvisioningName')]"},
+                    "iotHubSkuName": {"value": "[parameters('iotHubSkuName')]"},
+                    "iotHubCapacityUnits": {"value": "[parameters('iotHubCapacityUnits')]"},
+                    "keyVaultName": {"value": "[variables('keyVaultName')]"}
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2020-10-01",
+            "name": "dataIngestionDeployment",
+            "dependsOn": [
+                "iotHubDeployment"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "relativePath": "dataingestion.json"
+                },
+                "parameters": {
+                    "environmentName": {"value": "[parameters('environmentName')]"},
+                    "location": {"value": "[parameters('location')]"},
+                    "secondaryLocation": {"value": "[parameters('secondaryLocation')]"},
+                    "eventHubsNamespaceName": {"value": "[variables('eventHubsNamespaceName')]"},
+                    "iotHubName": {"value": "[variables('iotHubName')]"}
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2020-10-01",
+            "name": "storageDeployment",
+            "dependsOn": [
+                "dataIngestionDeployment"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "relativePath": "storage.json"
+                },
+                "parameters": {
+                    "environmentName": {"value": "[parameters('environmentName')]"},
+                    "location": {"value": "[parameters('location')]"},
+                    "secondaryLocation": {"value": "[parameters('secondaryLocation')]"},
+                    "cosmosDbAccountName": {"value": "[variables('cosmosDbAccountName')]"},
+                    "cosmosDbThroughput": {"value": "[parameters('cosmosDbThroughput')]"},
+                    "timeSeriesInsightsName": {"value": "[variables('timeSeriesInsightsName')]"},
+                    "dataLakeStorageName": {"value": "[variables('dataLakeStorageName')]"},
+                    "blobStorageName": {"value": "[variables('blobStorageName')]"},
+                    "eventHubsNamespaceName": {"value": "[variables('eventHubsNamespaceName')]"}
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2020-10-01",
+            "name": "processingDeployment",
+            "dependsOn": [
+                "dataIngestionDeployment",
+                "storageDeployment"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "relativePath": "processing.json"
+                },
+                "parameters": {
+                    "environmentName": {"value": "[parameters('environmentName')]"},
+                    "location": {"value": "[parameters('location')]"},
+                    "streamAnalyticsName": {"value": "[variables('streamAnalyticsName')]"},
+                    "functionAppName": {"value": "[variables('functionAppName')]"},
+                    "appServicePlanName": {"value": "[variables('appServicePlanName')]"},
+                    "appInsightsName": {"value": "[variables('appInsightsName')]"},
+                    "eventHubsNamespaceName": {"value": "[variables('eventHubsNamespaceName')]"},
+                    "cosmosDbAccountName": {"value": "[variables('cosmosDbAccountName')]"},
+                    "dataLakeStorageName": {"value": "[variables('dataLakeStorageName')]"}
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2020-10-01",
+            "name": "applicationDeployment",
+            "dependsOn": [
+                "processingDeployment"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "relativePath": "application.json"
+                },
+                "parameters": {
+                    "environmentName": {"value": "[parameters('environmentName')]"},
+                    "location": {"value": "[parameters('location')]"},
+                    "digitalTwinsName": {"value": "[variables('digitalTwinsName')]"},
+                    "iotHubName": {"value": "[variables('iotHubName')]"},
+                    "functionAppName": {"value": "[variables('functionAppName')]"},
+                    "timeSeriesInsightsName": {"value": "[variables('timeSeriesInsightsName')]"},
+                    "cosmosDbAccountName": {"value": "[variables('cosmosDbAccountName')]"},
+                    "administratorLogin": {"value": "[parameters('administratorLogin')]"},
+                    "administratorLoginPassword": {"value": "[parameters('administratorLoginPassword')]"}
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2020-10-01",
+            "name": "monitoringDeployment",
+            "condition": "[parameters('deployAlerting')]",
+            "dependsOn": [
+                "iotHubDeployment",
+                "processingDeployment",
+                "applicationDeployment"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "relativePath": "monitoring.json"
+                },
+                "parameters": {
+                    "environmentName": {"value": "[parameters('environmentName')]"},
+                    "location": {"value": "[parameters('location')]"},
+                    "logAnalyticsName": {"value": "[variables('logAnalyticsName')]"},
+                    "appInsightsName": {"value": "[variables('appInsightsName')]"},
+                    "iotHubName": {"value": "[variables('iotHubName')]"},
+                    "functionAppName": {"value": "[variables('functionAppName')]"},
+                    "streamAnalyticsName": {"value": "[variables('streamAnalyticsName')]"},
+                    "cosmosDbAccountName": {"value": "[variables('cosmosDbAccountName')]"}
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2020-10-01",
+            "name": "simulatorDeployment",
+            "condition": "[parameters('deviceSimulatorRequired')]",
+            "dependsOn": [
+                "iotHubDeployment"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "relativePath": "simulator.json"
+                },
+                "parameters": {
+                    "environmentName": {"value": "[parameters('environmentName')]"},
+                    "location": {"value": "[parameters('location')]"},
+                    "iotHubName": {"value": "[variables('iotHubName')]"}
+                }
+            }
+        }
+    ],
+    "outputs": {
+        "iotHubConnectionString": {
+            "type": "string",
+            "value": "[reference('iotHubDeployment').outputs.iotHubConnectionString.value]"
+        },
+        "functionAppHostName": {
+            "type": "string",
+            "value": "[reference('processingDeployment').outputs.functionAppHostName.value]"
+        },
+        "cosmosDbEndpoint": {
+            "type": "string",
+            "value": "[reference('storageDeployment').outputs.cosmosDbEndpoint.value]"
+        },
+        "powerBiEmbedUrl": {
+            "type": "string",
+            "value": "[reference('applicationDeployment').outputs.powerBiEmbedUrl.value]"
+        }
+    }
+}

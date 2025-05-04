@@ -1,0 +1,401 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "environmentName": {
+            "type": "string",
+            "metadata": {
+                "description": "Environment name prefix"
+            }
+        },
+        "location": {
+            "type": "string",
+            "metadata": {
+                "description": "Primary deployment location"
+            }
+        },
+        "secondaryLocation": {
+            "type": "string",
+            "metadata": {
+                "description": "Secondary deployment location"
+            }
+        },
+        "cosmosDbAccountName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Cosmos DB account"
+            }
+        },
+        "cosmosDbThroughput": {
+            "type": "int",
+            "defaultValue": 10000,
+            "metadata": {
+                "description": "Cosmos DB provisioned throughput"
+            }
+        },
+        "timeSeriesInsightsName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Time Series Insights environment"
+            }
+        },
+        "dataLakeStorageName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Data Lake Storage account"
+            }
+        },
+        "blobStorageName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Blob Storage account"
+            }
+        },
+        "eventHubsNamespaceName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Event Hubs namespace"
+            }
+        }
+    },
+    "variables": {
+        "cosmosDbDatabaseName": "WATOperationalData",
+        "telemetryContainerName": "telemetry",
+        "eventsContainerName": "events",
+        "deviceStateContainerName": "deviceState",
+        "waterQualityContainerName": "waterQuality",
+        "blobArchiveContainerName": "archive",
+        "dataLakeFileSystemName": "watdatalake",
+        "coldTierPath": "cold",
+        "analyticsPath": "analytics"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.DocumentDB/databaseAccounts",
+            "apiVersion": "2021-10-15",
+            "name": "[parameters('cosmosDbAccountName')]",
+            "location": "[parameters('location')]",
+            "kind": "GlobalDocumentDB",
+            "properties": {
+                "enableAutomaticFailover": true,
+                "enableMultipleWriteLocations": true,
+                "isVirtualNetworkFilterEnabled": false,
+                "virtualNetworkRules": [],
+                "ipRules": [],
+                "databaseAccountOfferType": "Standard",
+                "consistencyPolicy": {
+                    "defaultConsistencyLevel": "Session",
+                    "maxIntervalInSeconds": 5,
+                    "maxStalenessPrefix": 100
+                },
+                "locations": [
+                    {
+                        "locationName": "[parameters('location')]",
+                        "failoverPriority": 0,
+                        "isZoneRedundant": true
+                    },
+                    {
+                        "locationName": "[parameters('secondaryLocation')]",
+                        "failoverPriority": 1,
+                        "isZoneRedundant": true
+                    }
+                ],
+                "capabilities": [
+                    {
+                        "name": "EnableServerless"
+                    }
+                ]
+            },
+            "tags": {
+                "environment": "[parameters('environmentName')]",
+                "tier": "hot"
+            }
+        },
+        {
+            "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
+            "apiVersion": "2021-10-15",
+            "name": "[concat(parameters('cosmosDbAccountName'), '/', variables('cosmosDbDatabaseName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName'))]"
+            ],
+            "properties": {
+                "resource": {
+                    "id": "[variables('cosmosDbDatabaseName')]"
+                },
+                "options": {
+                    "throughput": "[parameters('cosmosDbThroughput')]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+            "apiVersion": "2021-10-15",
+            "name": "[concat(parameters('cosmosDbAccountName'), '/', variables('cosmosDbDatabaseName'), '/', variables('telemetryContainerName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), variables('cosmosDbDatabaseName'))]"
+            ],
+            "properties": {
+                "resource": {
+                    "id": "[variables('telemetryContainerName')]",
+                    "indexingPolicy": {
+                        "indexingMode": "consistent",
+                        "includedPaths": [
+                            {
+                                "path": "/*"
+                            }
+                        ],
+                        "excludedPaths": [
+                            {
+                                "path": "/\"_etag\"/?"
+                            }
+                        ]
+                    },
+                    "partitionKey": {
+                        "paths": [
+                            "/deviceId"
+                        ],
+                        "kind": "Hash"
+                    },
+                    "defaultTtl": 604800
+                }
+            }
+        },
+        {
+            "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+            "apiVersion": "2021-10-15",
+            "name": "[concat(parameters('cosmosDbAccountName'), '/', variables('cosmosDbDatabaseName'), '/', variables('eventsContainerName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), variables('cosmosDbDatabaseName'))]"
+            ],
+            "properties": {
+                "resource": {
+                    "id": "[variables('eventsContainerName')]",
+                    "indexingPolicy": {
+                        "indexingMode": "consistent",
+                        "includedPaths": [
+                            {
+                                "path": "/*"
+                            }
+                        ],
+                        "excludedPaths": [
+                            {
+                                "path": "/\"_etag\"/?"
+                            }
+                        ]
+                    },
+                    "partitionKey": {
+                        "paths": [
+                            "/eventType"
+                        ],
+                        "kind": "Hash"
+                    },
+                    "defaultTtl": 604800
+                }
+            }
+        },
+        {
+            "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+            "apiVersion": "2021-10-15",
+            "name": "[concat(parameters('cosmosDbAccountName'), '/', variables('cosmosDbDatabaseName'), '/', variables('deviceStateContainerName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), variables('cosmosDbDatabaseName'))]"
+            ],
+            "properties": {
+                "resource": {
+                    "id": "[variables('deviceStateContainerName')]",
+                    "indexingPolicy": {
+                        "indexingMode": "consistent",
+                        "includedPaths": [
+                            {
+                                "path": "/*"
+                            }
+                        ],
+                        "excludedPaths": [
+                            {
+                                "path": "/\"_etag\"/?"
+                            }
+                        ]
+                    },
+                    "partitionKey": {
+                        "paths": [
+                            "/deviceId"
+                        ],
+                        "kind": "Hash"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+            "apiVersion": "2021-10-15",
+            "name": "[concat(parameters('cosmosDbAccountName'), '/', variables('cosmosDbDatabaseName'), '/', variables('waterQualityContainerName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), variables('cosmosDbDatabaseName'))]"
+            ],
+            "properties": {
+                "resource": {
+                    "id": "[variables('waterQualityContainerName')]",
+                    "indexingPolicy": {
+                        "indexingMode": "consistent",
+                        "includedPaths": [
+                            {
+                                "path": "/*"
+                            }
+                        ],
+                        "excludedPaths": [
+                            {
+                                "path": "/\"_etag\"/?"
+                            }
+                        ]
+                    },
+                    "partitionKey": {
+                        "paths": [
+                            "/locationId"
+                        ],
+                        "kind": "Hash"
+                    },
+                    "defaultTtl": 604800
+                }
+            }
+        },
+        {
+            "type": "Microsoft.TimeSeriesInsights/environments",
+            "apiVersion": "2020-05-15",
+            "name": "[parameters('timeSeriesInsightsName')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "L1",
+                "capacity": 1
+            },
+            "properties": {
+                "storageConfiguration": {
+                    "accountName": "[parameters('dataLakeStorageName')]",
+                    "managementKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('dataLakeStorageName')), '2021-06-01').keys[0].value]"
+                },
+                "timeSeriesIdProperties": [
+                    {
+                        "name": "deviceId",
+                        "type": "String"
+                    }
+                ],
+                "warmStoreConfiguration": {
+                    "dataRetention": "P90D"
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('dataLakeStorageName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.TimeSeriesInsights/environments/eventSources",
+            "apiVersion": "2020-05-15",
+            "name": "[concat(parameters('timeSeriesInsightsName'), '/telemetry-source')]",
+            "location": "[parameters('location')]",
+            "kind": "Microsoft.EventHub",
+            "properties": {
+                "eventSourceResourceId": "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('eventHubsNamespaceName'), 'telemetry')]",
+                "eventHubName": "telemetry",
+                "serviceBusNamespace": "[parameters('eventHubsNamespaceName')]",
+                "consumerGroupName": "$Default",
+                "keyName": "RootManageSharedAccessKey",
+                "sharedAccessKey": "[listKeys(resourceId('Microsoft.EventHub/namespaces/eventhubs/authorizationRules', parameters('eventHubsNamespaceName'), 'telemetry', 'listen'), '2021-06-01-preview').primaryKey]"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.TimeSeriesInsights/environments', parameters('timeSeriesInsightsName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2021-06-01",
+            "name": "[parameters('dataLakeStorageName')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "kind": "StorageV2",
+            "properties": {
+                "accessTier": "Hot",
+                "supportsHttpsTrafficOnly": true,
+                "minimumTlsVersion": "TLS1_2",
+                "allowBlobPublicAccess": false,
+                "allowSharedKeyAccess": true,
+                "networkAcls": {
+                    "bypass": "AzureServices",
+                    "defaultAction": "Allow",
+                    "ipRules": []
+                },
+                "isHnsEnabled": true
+            },
+            "tags": {
+                "environment": "[parameters('environmentName')]",
+                "tier": "cold"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+            "apiVersion": "2021-06-01",
+            "name": "[concat(parameters('dataLakeStorageName'), '/default/', variables('dataLakeFileSystemName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('dataLakeStorageName'))]"
+            ],
+            "properties": {
+                "publicAccess": "None"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2021-06-01",
+            "name": "[parameters('blobStorageName')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "Standard_GRS"
+            },
+            "kind": "StorageV2",
+            "properties": {
+                "accessTier": "Cool",
+                "supportsHttpsTrafficOnly": true,
+                "minimumTlsVersion": "TLS1_2",
+                "allowBlobPublicAccess": false,
+                "allowSharedKeyAccess": true,
+                "networkAcls": {
+                    "bypass": "AzureServices",
+                    "defaultAction": "Allow",
+                    "ipRules": []
+                }
+            },
+            "tags": {
+                "environment": "[parameters('environmentName')]",
+                "tier": "archive"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+            "apiVersion": "2021-06-01",
+            "name": "[concat(parameters('blobStorageName'), '/default/', variables('blobArchiveContainerName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('blobStorageName'))]"
+            ],
+            "properties": {
+                "publicAccess": "None"
+            }
+        }
+    ],
+    "outputs": {
+        "cosmosDbEndpoint": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName'))).documentEndpoint]"
+        },
+        "timeSeriesInsightsEndpoint": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.TimeSeriesInsights/environments', parameters('timeSeriesInsightsName'))).dataAccessFQDN]"
+        },
+        "dataLakeStorageEndpoint": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('dataLakeStorageName'))).primaryEndpoints.dfs]"
+        },
+        "blobStorageEndpoint": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('blobStorageName'))).primaryEndpoints.blob]"
+        }
+    }
+}

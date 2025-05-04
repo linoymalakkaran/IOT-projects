@@ -1,0 +1,403 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "environmentName": {
+            "type": "string",
+            "metadata": {
+                "description": "Environment name prefix"
+            }
+        },
+        "location": {
+            "type": "string",
+            "metadata": {
+                "description": "Primary deployment location"
+            }
+        },
+        "streamAnalyticsName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Stream Analytics job"
+            }
+        },
+        "functionAppName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Function App"
+            }
+        },
+        "appServicePlanName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the App Service Plan"
+            }
+        },
+        "appInsightsName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Application Insights"
+            }
+        },
+        "eventHubsNamespaceName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Event Hubs namespace"
+            }
+        },
+        "cosmosDbAccountName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Cosmos DB account"
+            }
+        },
+        "dataLakeStorageName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Data Lake Storage account"
+            }
+        }
+    },
+    "variables": {
+        "functionStorage": "[concat(substring(replace(parameters('functionAppName'), '-', ''), 0, 20), 'stor')]",
+        "valveControlFuncName": "ValveControl",
+        "anomalyDetectionFuncName": "AnomalyDetection",
+        "databricksWorkspaceName": "[concat(parameters('environmentName'), '-databricks')]",
+        "databricksResourceGroupName": "[resourceGroup().name]",
+        "streamAnalyticsInputName": "telemetryInput",
+        "streamAnalyticsOutputCosmosDB": "cosmosOutput",
+        "streamAnalyticsOutputValveControl": "valveControlOutput",
+        "streamAnalyticsOutputStorage": "storageOutput"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2021-06-01",
+            "name": "[variables('functionStorage')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "kind": "StorageV2",
+            "properties": {
+                "supportsHttpsTrafficOnly": true,
+                "minimumTlsVersion": "TLS1_2",
+                "allowBlobPublicAccess": false,
+                "networkAcls": {
+                    "bypass": "AzureServices",
+                    "defaultAction": "Allow",
+                    "ipRules": []
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Insights/components",
+            "apiVersion": "2020-02-02",
+            "name": "[parameters('appInsightsName')]",
+            "location": "[parameters('location')]",
+            "kind": "web",
+            "properties": {
+                "Application_Type": "web",
+                "Request_Source": "IbizaWebAppExtensionCreate",
+                "RetentionInDays": 90,
+                "publicNetworkAccessForIngestion": "Enabled",
+                "publicNetworkAccessForQuery": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2021-02-01",
+            "name": "[parameters('appServicePlanName')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "EP1",
+                "tier": "ElasticPremium",
+                "size": "EP1",
+                "family": "EP",
+                "capacity": 1
+            },
+            "kind": "elastic",
+            "properties": {
+                "perSiteScaling": false,
+                "elasticScaleEnabled": true,
+                "maximumElasticWorkerCount": 20,
+                "isSpot": false,
+                "reserved": false,
+                "isXenon": false,
+                "hyperV": false,
+                "targetWorkerCount": 0,
+                "targetWorkerSizeId": 0,
+                "zoneRedundant": true
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2021-02-01",
+            "name": "[parameters('functionAppName')]",
+            "location": "[parameters('location')]",
+            "kind": "functionapp",
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('functionStorage'))]",
+                "[resourceId('Microsoft.Insights/components', parameters('appInsightsName'))]"
+            ],
+            "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]",
+                "siteConfig": {
+                    "appSettings": [
+                        {
+                            "name": "AzureWebJobsStorage",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('functionStorage'), ';EndpointSuffix=', environment().suffixes.storage, ';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('functionStorage')), '2021-06-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('functionStorage'), ';EndpointSuffix=', environment().suffixes.storage, ';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('functionStorage')), '2021-06-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTSHARE",
+                            "value": "[toLower(parameters('functionAppName'))]"
+                        },
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~4"
+                        },
+                        {
+                            "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                            "value": "[reference(resourceId('Microsoft.Insights/components', parameters('appInsightsName')), '2020-02-02').InstrumentationKey]"
+                        },
+                        {
+                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                            "value": "dotnet"
+                        },
+                        {
+                            "name": "CosmosDBConnection",
+                            "value": "[concat('AccountEndpoint=', reference(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName'))).documentEndpoint, ';AccountKey=', listKeys(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName')), '2021-10-15').primaryMasterKey, ';')]"
+                        },
+                        {
+                            "name": "EventHubConnection",
+                            "value": "[concat('Endpoint=sb://', parameters('eventHubsNamespaceName'), '.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=', listkeys(resourceId('Microsoft.EventHub/namespaces/authorizationRules', parameters('eventHubsNamespaceName'), 'RootManageSharedAccessKey'), '2021-06-01-preview').primaryKey)]"
+                        },
+                        {
+                            "name": "DataLakeConnection",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', parameters('dataLakeStorageName'), ';EndpointSuffix=', environment().suffixes.storage, ';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('dataLakeStorageName')), '2021-06-01').keys[0].value)]"
+                        }
+                    ],
+                    "use32BitWorkerProcess": false,
+                    "ftpsState": "Disabled",
+                    "minTlsVersion": "1.2"
+                },
+                "httpsOnly": true
+            }
+        },
+        {
+            "type": "Microsoft.StreamAnalytics/streamingjobs",
+            "apiVersion": "2017-04-01-preview",
+            "name": "[parameters('streamAnalyticsName')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "sku": {
+                    "name": "Standard"
+                },
+                "outputErrorPolicy": "Stop",
+                "eventsOutOfOrderPolicy": "Adjust",
+                "eventsOutOfOrderMaxDelayInSeconds": 0,
+                "eventsLateArrivalMaxDelayInSeconds": 5,
+                "dataLocale": "en-US",
+                "compatibilityLevel": "1.2",
+                "contentStoragePolicy": "SystemAccount"
+            }
+        },
+        {
+            "type": "Microsoft.StreamAnalytics/streamingjobs/inputs",
+            "apiVersion": "2017-04-01-preview",
+            "name": "[concat(parameters('streamAnalyticsName'), '/', variables('streamAnalyticsInputName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.StreamAnalytics/streamingjobs', parameters('streamAnalyticsName'))]"
+            ],
+            "properties": {
+                "type": "Microsoft.ServiceBus/EventHub",
+                "serialization": {
+                    "type": "Json",
+                    "properties": {
+                        "encoding": "UTF8"
+                    }
+                },
+                "compression": {
+                    "type": "None"
+                },
+                "eventHubProperties": {
+                    "serviceBusNamespace": "[parameters('eventHubsNamespaceName')]",
+                    "sharedAccessPolicyName": "RootManageSharedAccessKey",
+                    "sharedAccessPolicyKey": "[listkeys(resourceId('Microsoft.EventHub/namespaces/authorizationRules', parameters('eventHubsNamespaceName'), 'RootManageSharedAccessKey'), '2021-06-01-preview').primaryKey]",
+                    "eventHubName": "telemetry",
+                    "consumerGroupName": "$Default"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.StreamAnalytics/streamingjobs/outputs",
+            "apiVersion": "2017-04-01-preview",
+            "name": "[concat(parameters('streamAnalyticsName'), '/', variables('streamAnalyticsOutputCosmosDB'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.StreamAnalytics/streamingjobs', parameters('streamAnalyticsName'))]"
+            ],
+            "properties": {
+                "datasource": {
+                    "type": "Microsoft.Storage/DocumentDB",
+                    "properties": {
+                        "accountId": "[parameters('cosmosDbAccountName')]",
+                        "accountKey": "[listKeys(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName')), '2021-10-15').primaryMasterKey]",
+                        "database": "WATOperationalData",
+                        "collectionNamePattern": "telemetry",
+                        "partitionKey": "deviceId",
+                        "documentId": ""
+                    }
+                },
+                "serialization": {
+                    "type": "Json",
+                    "properties": {
+                        "encoding": "UTF8",
+                        "format": "LineSeparated"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.StreamAnalytics/streamingjobs/outputs",
+            "apiVersion": "2017-04-01-preview",
+            "name": "[concat(parameters('streamAnalyticsName'), '/', variables('streamAnalyticsOutputValveControl'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.StreamAnalytics/streamingjobs', parameters('streamAnalyticsName'))]"
+            ],
+            "properties": {
+                "datasource": {
+                    "type": "Microsoft.ServiceBus/EventHub",
+                    "properties": {
+                        "serviceBusNamespace": "[parameters('eventHubsNamespaceName')]",
+                        "sharedAccessPolicyName": "RootManageSharedAccessKey",
+                        "sharedAccessPolicyKey": "[listkeys(resourceId('Microsoft.EventHub/namespaces/authorizationRules', parameters('eventHubsNamespaceName'), 'RootManageSharedAccessKey'), '2021-06-01-preview').primaryKey]",
+                        "eventHubName": "valve-control",
+                        "partitionKey": "deviceId"
+                    }
+                },
+                "serialization": {
+                    "type": "Json",
+                    "properties": {
+                        "encoding": "UTF8",
+                        "format": "LineSeparated"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.StreamAnalytics/streamingjobs/outputs",
+            "apiVersion": "2017-04-01-preview",
+            "name": "[concat(parameters('streamAnalyticsName'), '/', variables('streamAnalyticsOutputStorage'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.StreamAnalytics/streamingjobs', parameters('streamAnalyticsName'))]"
+            ],
+            "properties": {
+                "datasource": {
+                    "type": "Microsoft.Storage/Blob",
+                    "properties": {
+                        "storageAccounts": [
+                            {
+                                "accountName": "[parameters('dataLakeStorageName')]",
+                                "accountKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('dataLakeStorageName')), '2021-06-01').keys[0].value]"
+                            }
+                        ],
+                        "container": "watdatalake",
+                        "pathPattern": "cold/telemetry/{date}/{time}",
+                        "dateFormat": "yyyy/MM/dd",
+                        "timeFormat": "HH",
+                        "authenticationMode": "ConnectionString"
+                    }
+                },
+                "serialization": {
+                    "type": "Parquet"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.StreamAnalytics/streamingjobs/functions",
+            "apiVersion": "2017-04-01-preview",
+            "name": "[concat(parameters('streamAnalyticsName'), '/', variables('anomalyDetectionFuncName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.StreamAnalytics/streamingjobs', parameters('streamAnalyticsName'))]",
+                "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]"
+            ],
+            "properties": {
+                "type": "Microsoft.MachineLearningServices",
+                "properties": {
+                    "inputs": [
+                        {
+                            "dataType": "record",
+                            "isConfigurationParameter": false
+                        }
+                    ],
+                    "output": {
+                        "dataType": "record"
+                    },
+                    "binding": {
+                        "type": "Microsoft.AzureFunction",
+                        "properties": {
+                            "batchSize": 100,
+                            "functionAppName": "[parameters('functionAppName')]",
+                            "functionName": "AnomalyDetector",
+                            "apiKey": null
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Databricks/workspaces",
+            "apiVersion": "2021-04-01-preview",
+            "name": "[variables('databricksWorkspaceName')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "premium"
+            },
+            "properties": {
+                "managedResourceGroupId": "[concat(subscription().id, '/resourceGroups/', variables('databricksResourceGroupName'), '-', uniqueString(parameters('environmentName')), '-databricks')]",
+                "parameters": {
+                    "enableNoPublicIp": {
+                        "value": false
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.StreamAnalytics/streamingjobs/transformations",
+            "apiVersion": "2017-04-01-preview",
+            "name": "[concat(parameters('streamAnalyticsName'), '/WaterQualityTransformation')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.StreamAnalytics/streamingjobs', parameters('streamAnalyticsName'))]",
+                "[resourceId('Microsoft.StreamAnalytics/streamingjobs/inputs', parameters('streamAnalyticsName'), variables('streamAnalyticsInputName'))]",
+                "[resourceId('Microsoft.StreamAnalytics/streamingjobs/outputs', parameters('streamAnalyticsName'), variables('streamAnalyticsOutputCosmosDB'))]",
+                "[resourceId('Microsoft.StreamAnalytics/streamingjobs/outputs', parameters('streamAnalyticsName'), variables('streamAnalyticsOutputValveControl'))]",
+                "[resourceId('Microsoft.StreamAnalytics/streamingjobs/outputs', parameters('streamAnalyticsName'), variables('streamAnalyticsOutputStorage'))]"
+            ],
+            "properties": {
+                "streamingUnits": 6,
+                "query": "WITH AnomalyDetectionInput AS (\n    SELECT\n        deviceId,\n        waterFlowRate,\n        waterPressure,\n        waterQuality,\n        valveStatus,\n        messageTimestamp,\n        EventEnqueuedUtcTime AS eventTime\n    FROM\n        [telemetryInput]\n)\n\n-- Process regular telemetry to Cosmos DB\nSELECT\n    deviceId,\n    waterFlowRate,\n    waterPressure,\n    waterQuality,\n    valveStatus,\n    messageTimestamp,\n    EventEnqueuedUtcTime AS ingestedTime,\n    System.Timestamp() AS processedTime\nINTO\n    [cosmosOutput]\nFROM\n    [telemetryInput]\n\n-- Process data to Data Lake for long-term storage\nSELECT\n    deviceId,\n    waterFlowRate,\n    waterPressure,\n    waterQuality,\n    valveStatus,\n    messageTimestamp,\n    EventEnqueuedUtcTime AS ingestedTime,\n    System.Timestamp() AS processedTime\nINTO\n    [storageOutput]\nFROM\n    [telemetryInput]\n\n-- Detect anomalies and generate valve control commands\nSELECT\n    deviceId,\n    'CLOSE' AS valveCommand,\n    System.Timestamp() AS commandTime,\n    'ANOMALY' AS commandReason\nINTO\n    [valveControlOutput]\nFROM\n    AnomalyDetectionInput\nWHERE\n    (waterFlowRate > 100 OR waterPressure > 120 OR waterQuality < 50)\n    AND valveStatus <> 'CLOSED'\n"
+            }
+        }
+    ],
+    "outputs": {
+        "functionAppHostName": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName'))).defaultHostName]"
+        },
+        "streamAnalyticsJobState": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.StreamAnalytics/streamingjobs', parameters('streamAnalyticsName'))).jobState]"
+        },
+        "databricksWorkspaceUrl": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.Databricks/workspaces', variables('databricksWorkspaceName'))).workspaceUrl]"
+        }
+    }
+}

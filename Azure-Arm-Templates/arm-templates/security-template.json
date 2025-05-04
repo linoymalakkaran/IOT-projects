@@ -1,0 +1,305 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "environmentName": {
+            "type": "string",
+            "metadata": {
+                "description": "Environment name prefix"
+            }
+        },
+        "location": {
+            "type": "string",
+            "metadata": {
+                "description": "Primary deployment location"
+            }
+        },
+        "keyVaultName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Key Vault"
+            }
+        }
+    },
+    "variables": {
+        "securityCenterName": "[concat(parameters('environmentName'), '-security-center')]",
+        "defenderForIoTName": "[concat(parameters('environmentName'), '-defender-iot')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.KeyVault/vaults",
+            "apiVersion": "2021-06-01-preview",
+            "name": "[parameters('keyVaultName')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "enableRbacAuthorization": true,
+                "enableSoftDelete": true,
+                "softDeleteRetentionInDays": 90,
+                "tenantId": "[subscription().tenantId]",
+                "sku": {
+                    "family": "A",
+                    "name": "standard"
+                },
+                "networkAcls": {
+                    "bypass": "AzureServices",
+                    "defaultAction": "Allow"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Security/iotSecuritySolutions",
+            "apiVersion": "2019-08-01",
+            "name": "[variables('defenderForIoTName')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "workspace": "[resourceId('Microsoft.OperationalInsights/workspaces', concat(parameters('environmentName'), '-logs'))]",
+                "displayName": "WAT IoT Security",
+                "status": "Enabled",
+                "export": [
+                    "RawEvents"
+                ],
+                "disabledDataSources": [],
+                "iotHubs": [
+                    "[resourceId('Microsoft.Devices/IotHubs', concat(parameters('environmentName'), '-iothub'))]"
+                ],
+                "recommendationsConfiguration": [
+                    {
+                        "recommendationType": "IoT_ACRAuthentication",
+                        "status": "Enabled"
+                    },
+                    {
+                        "recommendationType": "IoT_AgentSendsUnutilizedMessages",
+                        "status": "Enabled"
+                    },
+                    {
+                        "recommendationType": "IoT_PermissiveFirewallPolicy",
+                        "status": "Enabled"
+                    },
+                    {
+                        "recommendationType": "IoT_PermissiveInputFirewallRules",
+                        "status": "Enabled"
+                    },
+                    {
+                        "recommendationType": "IoT_PermissiveOutputFirewallRules",
+                        "status": "Enabled"
+                    },
+                    {
+                        "recommendationType": "IoT_VulnerableTLSCipherSuite",
+                        "status": "Enabled"
+                    }
+                ],
+                "unmaskedIpLoggingStatus": "Disabled"
+            }
+        },
+        {
+            "type": "Microsoft.Security/pricings",
+            "apiVersion": "2022-03-01",
+            "name": "IoTSecurity",
+            "properties": {
+                "pricingTier": "Standard"
+            }
+        },
+        {
+            "type": "Microsoft.Security/pricings",
+            "apiVersion": "2022-03-01",
+            "name": "VirtualMachines",
+            "properties": {
+                "pricingTier": "Standard"
+            }
+        },
+        {
+            "type": "Microsoft.Security/pricings",
+            "apiVersion": "2022-03-01",
+            "name": "StorageAccounts",
+            "properties": {
+                "pricingTier": "Standard"
+            }
+        },
+        {
+            "type": "Microsoft.Security/pricings",
+            "apiVersion": "2022-03-01",
+            "name": "AppServices",
+            "properties": {
+                "pricingTier": "Standard"
+            }
+        },
+        {
+            "type": "Microsoft.Security/pricings",
+            "apiVersion": "2022-03-01",
+            "name": "SqlServers",
+            "properties": {
+                "pricingTier": "Standard"
+            }
+        },
+        {
+            "type": "Microsoft.Security/pricings",
+            "apiVersion": "2022-03-01",
+            "name": "KeyVaults",
+            "properties": {
+                "pricingTier": "Standard"
+            }
+        },
+        {
+            "type": "Microsoft.Security/pricings",
+            "apiVersion": "2022-03-01",
+            "name": "KubernetesService",
+            "properties": {
+                "pricingTier": "Standard"
+            }
+        },
+        {
+            "type": "Microsoft.Security/pricings",
+            "apiVersion": "2022-03-01",
+            "name": "ContainerRegistry",
+            "properties": {
+                "pricingTier": "Standard"
+            }
+        },
+        {
+            "type": "Microsoft.Security/automations",
+            "apiVersion": "2019-01-01-preview",
+            "name": "ExportToLogAnalytics",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', concat(parameters('environmentName'), '-logs'))]"
+            ],
+            "properties": {
+                "description": "Export all security alerts to Log Analytics",
+                "isEnabled": true,
+                "scopes": [
+                    {
+                        "description": "Subscription",
+                        "scopePath": "[subscription().id]"
+                    }
+                ],
+                "sources": [
+                    {
+                        "eventSource": "Alerts",
+                        "ruleSets": [
+                            {
+                                "rules": [
+                                    {
+                                        "propertyJPath": "Severity",
+                                        "propertyType": "String",
+                                        "expectedValue": "High",
+                                        "operator": "Equals"
+                                    }
+                                ]
+                            },
+                            {
+                                "rules": [
+                                    {
+                                        "propertyJPath": "Severity",
+                                        "propertyType": "String",
+                                        "expectedValue": "Medium",
+                                        "operator": "Equals"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "actions": [
+                    {
+                        "actionType": "LogAnalytics",
+                        "workspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', concat(parameters('environmentName'), '-logs'))]"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.OperationalInsights/workspaces",
+            "apiVersion": "2021-06-01",
+            "name": "[concat(parameters('environmentName'), '-logs')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "sku": {
+                    "name": "PerGB2018"
+                },
+                "retentionInDays": 90,
+                "features": {
+                    "enableLogAccessUsingOnlyResourcePermissions": true
+                },
+                "workspaceCapping": {
+                    "dailyQuotaGb": 10
+                }
+            }
+        },
+        {
+            "type": "Microsoft.OperationalInsights/workspaces/dataSources",
+            "apiVersion": "2020-08-01",
+            "name": "[concat(parameters('environmentName'), '-logs/SecurityEvents')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', concat(parameters('environmentName'), '-logs'))]"
+            ],
+            "kind": "SecurityEvents",
+            "properties": {
+                "eventLogName": "Security",
+                "eventTypes": [
+                    {
+                        "eventType": "Error"
+                    },
+                    {
+                        "eventType": "Warning"
+                    },
+                    {
+                        "eventType": "Information"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.OperationalInsights/workspaces/savedSearches",
+            "apiVersion": "2020-08-01",
+            "name": "[concat(parameters('environmentName'), '-logs/IoTDeviceUnusualActivity')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', concat(parameters('environmentName'), '-logs'))]"
+            ],
+            "properties": {
+                "etag": "*",
+                "displayName": "IoT Device Unusual Activity",
+                "category": "Security",
+                "query": "SecurityIoTRawEvent\n| where DeviceId !=\"\" and RawEventName == \"Baseline\"\n| project DeviceId, Time, Message, Protocol, LocalIP, RemoteIP\n| sort by Time desc",
+                "version": 2
+            }
+        },
+        {
+            "type": "Microsoft.Network/privateDnsZones",
+            "apiVersion": "2020-06-01",
+            "name": "privatelink.vaultcore.azure.net",
+            "location": "global",
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.Network/privateDnsZones",
+            "apiVersion": "2020-06-01",
+            "name": "privatelink.azure-devices.net",
+            "location": "global",
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.Network/privateDnsZones",
+            "apiVersion": "2020-06-01",
+            "name": "privatelink.servicebus.windows.net",
+            "location": "global",
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.Network/privateDnsZones",
+            "apiVersion": "2020-06-01",
+            "name": "privatelink.documents.azure.com",
+            "location": "global",
+            "properties": {}
+        }
+    ],
+    "outputs": {
+        "keyVaultUri": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))).vaultUri]"
+        },
+        "logAnalyticsWorkspaceId": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', concat(parameters('environmentName'), '-logs'))).customerId]"
+        }
+    }
+}
