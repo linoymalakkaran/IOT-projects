@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600">
+  <!-- Background -->
+  <rect width="900" height="600" fill="#f5f5f5" />
+  
+  <!-- Title -->
+  <text x="450" y="30" font-family="Arial, sans-serif" font-size="20" font-weight="bold" text-anchor="middle">WAT Network Architecture</text>
+  
+  <!-- Field Zone Container -->
+  <rect x="50" y="60" width="250" height="380" fill="#f8f9fa" stroke="#6c757d" stroke-width="1" rx="5" />
+  <rect x="50" y="60" width="250" height="30" fill="#d4edda" stroke="#28a745" stroke-width="1" rx="5" />
+  <text x="175" y="80" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Field Zone</text>
+  
+  <!-- IoT Water Meters -->
+  <rect x="70" y="100" width="100" height="60" fill="#d4edda" stroke="#28a745" stroke-width="1" rx="3" />
+  <text x="120" y="130" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">IoT Water Meter</text>
+  
+  <rect x="70" y="170" width="100" height="60" fill="#d4edda" stroke="#28a745" stroke-width="1" rx="3" />
+  <text x="120" y="200" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">IoT Water Meter</text>
+  
+  <rect x="70" y="240" width="100" height="60" fill="#d4edda" stroke="#28a745" stroke-width="1" rx="3" />
+  <text x="120" y="270" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">IoT Water Meter</text>
+  
+  <!-- Ellipsis for more meters -->
+  <text x="120" y="320" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle">...</text>
+  
+  <!-- Another IoT Water Meter below ellipsis -->
+  <rect x="70" y="340" width="100" height="60" fill="#d4edda" stroke="#28a745" stroke-width="1" rx="3" />
+  <text x="120" y="370" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">IoT Water Meter</text>
+  
+  <!-- LoRaWAN Gateway -->
+  <rect x="180" y="170" width="100" height="100" fill="#d4edda" stroke="#28a745" stroke-width="1" rx="3" />
+  <text x="230" y="210" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">LoRaWAN</text>
+  <text x="230" y="230" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">Gateway</text>
+  <text x="230" y="250" font-family="Arial, sans-serif" font-size="10" text-anchor="middle">(Primary Path)</text>
+  
+  <!-- Cellular -->
+  <rect x="180" y="340" width="100" height="60" fill="#fff3cd" stroke="#ffc107" stroke-width="1" rx="3" />
+  <text x="230" y="370" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">Cellular</text>
+  <text x="230" y="390" font-family="Arial, sans-serif" font-size="10" text-anchor="middle">(Backup Path)</text>
+  
+  <!-- Edge Zone Container -->
+  <rect x="350" y="60" width="250" height="380" fill="#f8f9fa" stroke="#6c757d" stroke-width="1" rx="5" />
+  <rect x="350" y="60" width="250" height="30" fill="#d1ecf1" stroke="#17a2b8" stroke-width="1" rx="5" />
+  <text x="475" y="80" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Edge Zone</text>
+  
+  <!-- Edge Zone Components -->
+  <rect x="375" y="100" width="200" height="60" fill="#d1ecf1" stroke="#17a2b8" stroke-width="1" rx="3" />
+  <text x="475" y="130" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">Azure IoT Edge</text>
+  
+  <rect x="375" y="170" width="200" height="60" fill="#d1ecf1" stroke="#17a2b8" stroke-width="1" rx="3" />
+  <text x="475" y="200" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">Local Data</text>
+  <text x="475" y="220" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Processing</text>
+  
+  <rect x="375" y="240" width="200" height="60" fill="#d1ecf1" stroke="#17a2b8" stroke-width="1" rx="3" />
+  <text x="475" y="270" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">Local Valve</text>
+  <text x="475" y="290" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Control Logic</text>
+  
+  <rect x="375" y="310" width="200" height="60" fill="#d1ecf1" stroke="#17a2b8" stroke-width="1" rx="3" />
+  <text x="475" y="340" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">Store &amp;</text>
+  <text x="475" y="360" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Forward</text>
+  
+  <!-- Cloud Zone Container -->
+  <rect x="650" y="60" width="250" height="380" fill="#f8f9fa" stroke="#6c757d" stroke-width="1" rx="5" />
+  <rect x="650" y="60" width="250" height="30" fill="#e2d9f3" stroke="#6f42c1" stroke-width="1" rx="5" />
+  <text x="775" y="80" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Cloud Zone (Azure)</text>
+  
+  <!-- Cloud Zone Components -->
+  <rect x="675" y="100" width="200" height="40" fill="#e2d9f3" stroke="#6f42c1" stroke-width="1" rx="3" />
+  <text x="775" y="125" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">Azure IoT Hub</text>
+  
+  <rect x="675" y="150" width="200" height="40" fill="#e2d9f3" stroke="#6f42c1" stroke-width="1" rx="3" />
+  <text x="775" y="175" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">Event Hubs</text>
+  
+  <rect x="675" y="200" width="200" height="40" fill="#e2d9f3" stroke="#6f42c1" stroke-width="1" rx="3" />
+  <text x="775" y="225" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">Stream Analytics</text>
+  
+  <rect x="675" y="250" width="200" height="40" fill="#e2d9f3" stroke="#6f42c1" stroke-width="1" rx="3" />
+  <text x="775" y="275" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">Azure Functions</text>
+  
+  <rect x="675" y="320" width="80" height="80" fill="#e2d9f3" stroke="#6f42c1" stroke-width="1" rx="3" />
+  <text x="715" y="345" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">Cosmos DB</text>
+  <text x="715" y="365" font-family="Arial, sans-serif" font-size="10" text-anchor="middle">(Hot Data)</text>
+  
+  <rect x="775" y="320" width="80" height="80" fill="#e2d9f3" stroke="#6f42c1" stroke-width="1" rx="3" />
+  <text x="815" y="345" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">Time Series</text>
+  <text x="815" y="365" font-family="Arial, sans-serif" font-size="10" text-anchor="middle">Insights</text>
+  
+  <rect x="675" y="410" width="200" height="40" fill="#e2d9f3" stroke="#6f42c1" stroke-width="1" rx="3" />
+  <text x="775" y="432" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">SCADA</text>
+  <text x="775" y="448" font-family="Arial, sans-serif" font-size="10" text-anchor="middle">Integration</text>
+  
+  <!-- Network Metrics Box -->
+  <rect x="350" y="450" width="250" height="100" fill="#f8f9fa" stroke="#6c757d" stroke-width="1" rx="5" />
+  <text x="475" y="470" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Key Network Metrics:</text>
+  <text x="370" y="490" font-family="Arial, sans-serif" font-size="12" text-anchor="start">• Availability: 99.9% with Redundant Paths</text>
+  <text x="370" y="510" font-family="Arial, sans-serif" font-size="12" text-anchor="start">• Control Signal Latency: &lt; 2 seconds</text>
+  <text x="370" y="530" font-family="Arial, sans-serif" font-size="12" text-anchor="start">• Battery Life: 5-10 years (replaceable)</text>
+  
+  <!-- Connection Lines -->
+  <!-- Field to Edge connections -->
+  <line x1="170" y1="130" x2="375" y2="130" stroke="#000" stroke-width="1.5" />
+  <line x1="280" y1="220" x2="375" y2="200" stroke="#000" stroke-width="1.5" />
+  <line x1="280" y1="220" x2="375" y2="270" stroke="#000" stroke-width="1.5" />
+  <line x1="280" y1="370" x2="375" y2="340" stroke="#000" stroke-width="1" stroke-dasharray="5,3" />
+  
+  <!-- Edge to Cloud connections -->
+  <line x1="575" y1="130" x2="675" y2="120" stroke="#000" stroke-width="1.5" />
+  <line x1="575" y1="200" x2="675" y2="170" stroke="#000" stroke-width="1.5" />
+  <line x1="575" y1="270" x2="675" y2="225" stroke="#000" stroke-width="1.5" />
+  <line x1="575" y1="340" x2="675" y2="270" stroke="#000" stroke-width="1.5" />
+  
+  <!-- Legend -->
+  <line x1="370" y1="570" x2="400" y2="570" stroke="#000" stroke-width="1.5" />
+  <text x="410" y="573" font-family="Arial, sans-serif" font-size="10">Primary Data Path</text>
+  
+  <line x1="470" y1="570" x2="500" y2="570" stroke="#000" stroke-width="1" stroke-dasharray="5,3" />
+  <text x="510" y="573" font-family="Arial, sans-serif" font-size="10">Backup Path</text>
+</svg>

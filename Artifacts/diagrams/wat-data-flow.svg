@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <!-- Background -->
+  <rect width="800" height="600" fill="#f5f5f5" />
+  
+  <!-- Title -->
+  <text x="400" y="30" font-family="Arial, sans-serif" font-size="20" font-weight="bold" text-anchor="middle">WAT Data Flow and Processing Architecture</text>
+  
+  <!-- IoT Water Meters -->
+  <rect x="70" y="70" width="140" height="80" fill="#d4edda" stroke="#28a745" stroke-width="2" rx="5" />
+  <text x="140" y="100" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">IoT Water Meters</text>
+  <text x="140" y="120" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Data Collection</text>
+  
+  <!-- Edge Processing -->
+  <rect x="290" y="70" width="140" height="80" fill="#d1ecf1" stroke="#17a2b8" stroke-width="2" rx="5" />
+  <text x="360" y="100" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Edge Processing</text>
+  <text x="360" y="120" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Filter &amp; Aggregate</text>
+  
+  <!-- Azure IoT Hub -->
+  <rect x="510" y="70" width="140" height="80" fill="#e2d9f3" stroke="#6f42c1" stroke-width="2" rx="5" />
+  <text x="580" y="100" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Azure IoT Hub</text>
+  <text x="580" y="120" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Message Ingestion</text>
+  
+  <!-- Event Hub -->
+  <rect x="650" y="70" width="140" height="80" fill="#fff3cd" stroke="#ffc107" stroke-width="2" rx="5" />
+  <text x="720" y="100" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Event Hub</text>
+  <text x="720" y="120" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Message Routing</text>
+  
+  <!-- Second Row Boxes -->
+  <!-- Stream Analytics -->
+  <rect x="70" y="200" width="140" height="80" fill="#fff3cd" stroke="#ffc107" stroke-width="2" rx="5" />
+  <text x="140" y="230" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Stream Analytics</text>
+  <text x="140" y="250" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Real-time Processing</text>
+  
+  <!-- Azure Functions -->
+  <rect x="290" y="200" width="140" height="80" fill="#fff3cd" stroke="#ffc107" stroke-width="2" rx="5" />
+  <text x="360" y="230" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Azure Functions</text>
+  <text x="360" y="250" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Event Processing</text>
+  
+  <!-- Azure Databricks -->
+  <rect x="510" y="200" width="140" height="80" fill="#fff3cd" stroke="#ffc107" stroke-width="2" rx="5" />
+  <text x="580" y="230" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Azure Databricks</text>
+  <text x="580" y="250" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Advanced Analytics</text>
+  
+  <!-- Digital Twins -->
+  <rect x="650" y="200" width="140" height="80" fill="#e2d9f3" stroke="#6f42c1" stroke-width="2" rx="5" />
+  <text x="720" y="230" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Digital Twins</text>
+  <text x="720" y="250" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Infrastructure Model</text>
+  
+  <!-- Third Row Boxes -->
+  <!-- Cosmos DB -->
+  <rect x="70" y="330" width="140" height="80" fill="#d1ecf1" stroke="#17a2b8" stroke-width="2" rx="5" />
+  <text x="140" y="360" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Cosmos DB</text>
+  <text x="140" y="380" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Hot Data (7 days)</text>
+  
+  <!-- Time Series -->
+  <rect x="290" y="330" width="140" height="80" fill="#d1ecf1" stroke="#17a2b8" stroke-width="2" rx="5" />
+  <text x="360" y="360" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Time Series</text>
+  <text x="360" y="380" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Warm Data (90 days)</text>
+  
+  <!-- Data Lake -->
+  <rect x="510" y="330" width="140" height="80" fill="#d1ecf1" stroke="#17a2b8" stroke-width="2" rx="5" />
+  <text x="580" y="360" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Data Lake</text>
+  <text x="580" y="380" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Cold Data (1+ year)</text>
+  
+  <!-- Blob Storage -->
+  <rect x="650" y="330" width="140" height="80" fill="#d1ecf1" stroke="#17a2b8" stroke-width="2" rx="5" />
+  <text x="720" y="360" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Blob Storage</text>
+  <text x="720" y="380" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Archive (1+ years)</text>
+  
+  <!-- Fourth Row Boxes -->
+  <!-- Power BI -->
+  <rect x="290" y="460" width="140" height="80" fill="#e2d9f3" stroke="#6f42c1" stroke-width="2" rx="5" />
+  <text x="360" y="490" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Power BI</text>
+  <text x="360" y="510" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">Executive Dashboards</text>
+  
+  <!-- Logic Apps -->
+  <rect x="510" y="460" width="140" height="80" fill="#e2d9f3" stroke="#6f42c1" stroke-width="2" rx="5" />
+  <text x="580" y="490" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Logic Apps</text>
+  <text x="580" y="510" font-family="Arial, sans-serif" font-size="12" text-anchor="middle">SCADA Integration</text>
+  
+  <!-- Legend -->
+  <rect x="70" y="460" width="140" height="80" fill="#f8f9fa" stroke="#6c757d" stroke-width="1" rx="5" />
+  <text x="140" y="480" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Legend</text>
+  
+  <!-- Legend items -->
+  <line x1="85" y1="495" x2="115" y2="495" stroke="#000" stroke-width="2" />
+  <text x="140" y="500" font-family="Arial, sans-serif" font-size="12">Regular Flow</text>
+  
+  <line x1="85" y1="520" x2="115" y2="520" stroke="#000" stroke-width="1" stroke-dasharray="5,3" />
+  <text x="140" y="525" font-family="Arial, sans-serif" font-size="12">Event-based Flow</text>
+  
+  <!-- Data Volume info -->
+  <rect x="70" y="550" width="580" height="30" fill="#f8f9fa" stroke="#6c757d" stroke-width="1" rx="5" />
+  <text x="80" y="570" font-family="Arial, sans-serif" font-size="12" text-anchor="start">Data Volume: ~2.4 GB/day (1M meters) • ~75 GB/month • >200 GB/year • Processing Capacity: 3+ GB/day (with 50% headroom)</text>
+  
+  <!-- Connections - Regular Flow -->
+  <!-- Row 1 horizontal -->
+  <line x1="210" y1="110" x2="290" y2="110" stroke="#000" stroke-width="2" />
+  <line x1="430" y1="110" x2="510" y2="110" stroke="#000" stroke-width="2" />
+  <line x1="650" y1="110" x2="590" y2="110" stroke="#000" stroke-width="2" />
+  
+  <!-- Row 2 horizontal -->
+  <line x1="210" y1="240" x2="290" y2="240" stroke="#000" stroke-width="2" />
+  <line x1="430" y1="240" x2="510" y2="240" stroke="#000" stroke-width="2" />
+  <line x1="650" y1="240" x2="590" y2="240" stroke="#000" stroke-width="2" />
+  
+  <!-- Row 3 horizontal -->
+  <line x1="210" y1="370" x2="290" y2="370" stroke="#000" stroke-width="1" stroke-dasharray="5,3" />
+  <line x1="430" y1="370" x2="510" y2="370" stroke="#000" stroke-width="1" stroke-dasharray="5,3" />
+  <line x1="650" y1="370" x2="590" y2="370" stroke="#000" stroke-width="1" stroke-dasharray="5,3" />
+  
+  <!-- Vertical connections - Event based -->
+  <line x1="140" y1="150" x2="140" y2="200" stroke="#000" stroke-width="1" stroke-dasharray="5,3" />
+  <line x1="720" y1="150" x2="720" y2="200" stroke="#000" stroke-width="1" stroke-dasharray="5,3" />
+  <line x1="140" y1="280" x2="140" y2="330" stroke="#000" stroke-width="2" />
+  <line x1="360" y1="280" x2="360" y2="330" stroke="#000" stroke-width="2" />
+  <line x1="580" y1="280" x2="580" y2="330" stroke="#000" stroke-width="2" />
+  <line x1="720" y1="280" x2="720" y2="330" stroke="#000" stroke-width="2" />
+  <line x1="580" y1="410" x2="580" y2="460" stroke="#000" stroke-width="2" />
+  
+  <!-- Diagonal connections -->
+  <line x1="140" y1="150" x2="360" y2="200" stroke="#000" stroke-width="1" stroke-dasharray="5,3" />
+  <line x1="140" y1="150" x2="580" y2="200" stroke="#000" stroke-width="1" stroke-dasharray="5,3" />
+  <line x1="720" y1="150" x2="140" y2="200" stroke="#000" stroke-width="1" stroke-dasharray="5,3" />
+  <line x1="580" y1="410" x2="360" y2="460" stroke="#000" stroke-width="2" />
+</svg>
