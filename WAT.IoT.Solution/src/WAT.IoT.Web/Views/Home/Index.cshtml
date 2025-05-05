@@ -1,0 +1,197 @@
+@model DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Water Treatment IoT Platform</h1>
+    <p>Real-time monitoring and control for water treatment facilities.</p>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h2>@Model.TotalDevices</h2>
+                <p class="mb-0">Total Devices</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h2>@Model.OnlineDevices</h2>
+                <p class="mb-0">Online Devices</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body text-center">
+                <h2>@Model.ActiveAlerts</h2>
+                <p class="mb-0">Active Alerts</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h2>@Model.AverageWaterQuality.ToString("F1")</h2>
+                <p class="mb-0">Avg. Water Quality</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Recent Devices</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Device ID</th>
+                                <th>Location</th>
+                                <th>Status</th>
+                                <th>Last Activity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var device in Model.RecentDevices)
+                            {
+                                <tr>
+                                    <td><a asp-controller="Devices" asp-action="Details" asp-route-id="@device.DeviceId">@device.DeviceId</a></td>
+                                    <td>@device.Location</td>
+                                    <td>
+                                        @if (device.IsActive)
+                                        {
+                                            <span class="badge bg-success">Online</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">Offline</span>
+                                        }
+                                    </td>
+                                    <td>@device.LastActivityTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-end">
+                    <a asp-controller="Devices" asp-action="Index" class="btn btn-sm btn-primary">View All Devices</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">Recent Alerts</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Device ID</th>
+                                <th>Type</th>
+                                <th>Severity</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var alert in Model.RecentAlerts)
+                            {
+                                <tr>
+                                    <td><a asp-controller="Devices" asp-action="Details" asp-route-id="@alert.DeviceId">@alert.DeviceId</a></td>
+                                    <td>@alert.Type</td>
+                                    <td>
+                                        @if (alert.Severity == AlertSeverity.Critical || alert.Severity == AlertSeverity.Emergency)
+                                        {
+                                            <span class="badge bg-danger">@alert.Severity</span>
+                                        }
+                                        else if (alert.Severity == AlertSeverity.Warning)
+                                        {
+                                            <span class="badge bg-warning text-dark">@alert.Severity</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-info">@alert.Severity</span>
+                                        }
+                                    </td>
+                                    <td>@alert.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-end">
+                    <a asp-controller="Alerts" asp-action="Index" class="btn btn-sm btn-primary">View All Alerts</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.ActiveFloodEvents.Any())
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">Active Flood Events</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Location</th>
+                                    <th>Severity</th>
+                                    <th>Start Time</th>
+                                    <th>Affected Devices</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var floodEvent in Model.ActiveFloodEvents)
+                                {
+                                    <tr>
+                                        <td>@floodEvent.Location</td>
+                                        <td>
+                                            @if (floodEvent.Severity == FloodSeverity.Catastrophic || floodEvent.Severity == FloodSeverity.Major)
+                                            {
+                                                <span class="badge bg-danger">@floodEvent.Severity</span>
+                                            }
+                                            else if (floodEvent.Severity == FloodSeverity.Moderate)
+                                            {
+                                                <span class="badge bg-warning text-dark">@floodEvent.Severity</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-info">@floodEvent.Severity</span>
+                                            }
+                                        </td>
+                                        <td>@floodEvent.StartTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                        <td>@floodEvent.AffectedDeviceIds.Count</td>
+                                        <td>
+                                            <a asp-controller="FloodEvents" asp-action="Details" asp-route-id="@floodEvent.EventId" class="btn btn-sm btn-primary">Details</a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-end">
+                        <a asp-controller="FloodEvents" asp-action="Index" class="btn btn-sm btn-primary">View All Flood Events</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}

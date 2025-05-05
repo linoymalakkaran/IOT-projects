@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.21.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="6.0.21" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WAT.IoT.Core\WAT.IoT.Core.csproj" />
+    <ProjectReference Include="..\WAT.IoT.Devices\WAT.IoT.Devices.csproj" />
+    <ProjectReference Include="..\WAT.IoT.Processing\WAT.IoT.Processing.csproj" />
+    <ProjectReference Include="..\WAT.IoT.Integration\WAT.IoT.Integration.csproj" />
+  </ItemGroup>
+
+</Project>
