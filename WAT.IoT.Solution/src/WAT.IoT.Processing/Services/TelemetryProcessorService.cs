@@ -120,6 +120,7 @@ namespace WAT.IoT.Processing.Services
 
                 // Update the device's last telemetry in the device communication service
                 await _deviceCommunication.UpdateTelemetryCacheAsync(reading);
+                
 
                 // Check if any alerts should be raised
                 await CheckForAlertsAsync(reading);

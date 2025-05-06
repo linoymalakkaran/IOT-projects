@@ -8,9 +8,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Azure.Devices" Version="1.39.0" />
+    <PackageReference Include="Microsoft.Azure.Devices.Shared" Version="1.31.0-preview-001" />
     <PackageReference Include="Microsoft.Azure.Devices.Client" Version="1.42.0" />
-    <PackageReference Include="Microsoft.Azure.Devices.Provisioning.Client" Version="1.19.2" />
-    <PackageReference Include="Microsoft.Azure.Devices.Provisioning.Transport.Mqtt" Version="1.18.2" />
+    <PackageReference Include="Microsoft.Azure.Devices.Provisioning.Client" Version="1.20.0-preview-001" />
+    <PackageReference Include="Microsoft.Azure.Devices.Provisioning.Transport.Mqtt" Version="1.18.0-preview-001" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="6.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />

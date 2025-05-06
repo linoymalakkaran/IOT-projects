@@ -67,9 +67,8 @@ namespace WAT.IoT.Functions.Functions
                         Conductivity = 320, // Mock value, should be derived from actual sensors
                         Temperature = latestReading.Temperature,
                         ChlorineLevels = 1.2, // Mock value, should be derived from actual sensors
-                        MeetsRegulationStandards = avg
-						# Continue from the WaterQualityReportFunction.cs function that was cut off
-Quality = avgQuality,
+                        //MeetsRegulationStandards = avg,
+                        //Quality = avgQuality,
                         MeetsRegulationStandards = avgQuality >= waterQualityThreshold
                     };
                     

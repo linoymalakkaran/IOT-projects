@@ -10,6 +10,7 @@ namespace WAT.IoT.Core.Interfaces
         Task<TelemetryReading?> GetLatestTelemetryAsync(string deviceId);
         Task<bool> IsDeviceOnlineAsync(string deviceId);
         Task<DeviceConnectionStatus> GetConnectionStatusAsync(string deviceId);
+        Task UpdateTelemetryCacheAsync(TelemetryReading reading);
     }
 
     public enum DeviceConnectionStatus

@@ -1,5 +1,6 @@
 // WAT.IoT.Functions/Functions/TelemetryProcessingFunction.cs
 using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.WebJobs.ServiceBus;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;

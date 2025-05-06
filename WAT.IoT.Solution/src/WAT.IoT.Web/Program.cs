@@ -18,6 +18,8 @@ app.UseRouting();
 
 app.UseAuthorization();
 
+
+
 app.MapStaticAssets();
 
 app.MapControllerRoute(
@@ -27,3 +29,43 @@ app.MapControllerRoute(
 
 
 app.Run();
+
+
+// Add the missing extension method for MapStaticAssets.  
+public static class StaticAssetsExtensions
+{
+    public static IEndpointRouteBuilder MapStaticAssets(this IEndpointRouteBuilder endpoints)
+    {
+        var app = endpoints as IApplicationBuilder;
+        if (app != null)
+        {
+            app.UseStaticFiles();
+        }
+        return endpoints;
+    }
+}// Add the missing extension method for WithStaticAssets.
+public static class ControllerActionEndpointConventionBuilderExtensions
+{
+    public static ControllerActionEndpointConventionBuilder WithStaticAssets(this ControllerActionEndpointConventionBuilder builder)
+    {
+        // Fix: Use the IServiceProvider from the builder's application services to resolve IApplicationBuilder
+        builder.Add(endpointBuilder =>
+        {
+            // EndpointBuilder does not have ApplicationServices. Instead, use the IServiceProvider from the builder.
+            var applicationServices = builder.GetType()
+                                              .GetProperty("ApplicationServices", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?
+                                              .GetValue(builder) as IServiceProvider;
+
+            if (applicationServices != null)
+            {
+                var app = applicationServices.GetService(typeof(IApplicationBuilder)) as IApplicationBuilder;
+                if (app != null)
+                {
+                    app.UseStaticFiles();
+                }
+            }
+        });
+
+        return builder;
+    }
+}

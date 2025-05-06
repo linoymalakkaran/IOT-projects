@@ -129,9 +129,18 @@ namespace WAT.IoT.Devices.Services
         {
             try
             {
+                // Track when the cache was last updated
                 if (_connectionStatusCache.TryGetValue(deviceId, out DeviceConnectionStatus cachedStatus))
                 {
-                    return cachedStatus;
+                    // Create a dictionary to track the last time we updated the cache
+                    if (_statusCacheUpdateTimes.TryGetValue(deviceId, out DateTime lastUpdate))
+                    {
+                        // Use cache if it's less than 5 minutes old
+                        if (DateTime.UtcNow.Subtract(lastUpdate).TotalMinutes < 5)
+                        {
+                            return cachedStatus;
+                        }
+                    }
                 }
 
                 var twin = await _registryManager.GetTwinAsync(deviceId);
@@ -142,22 +151,26 @@ namespace WAT.IoT.Devices.Services
                 }
 
                 // Check connection state from reported properties
-                if (twin.ConnectionState == Microsoft.Azure.Devices.Shared.ConnectionState.Connected)
+                if (twin.Properties.Reported.Contains("connectionState"))
                 {
-                    _connectionStatusCache[deviceId] = DeviceConnectionStatus.Online;
-                    return DeviceConnectionStatus.Online;
-                }
-                else if (twin.ConnectionState == Microsoft.Azure.Devices.Shared.ConnectionState.Disconnected)
-                {
-                    _connectionStatusCache[deviceId] = DeviceConnectionStatus.Offline;
-                    return DeviceConnectionStatus.Offline;
+                    string connectionState = twin.Properties.Reported["connectionState"]?.Value?.ToString();
+                    if (connectionState == "Connected")
+                    {
+                        UpdateStatusCache(deviceId, DeviceConnectionStatus.Online);
+                        return DeviceConnectionStatus.Online;
+                    }
+                    else if (connectionState == "Disconnected")
+                    {
+                        UpdateStatusCache(deviceId, DeviceConnectionStatus.Offline);
+                        return DeviceConnectionStatus.Offline;
+                    }
                 }
 
                 // If last activity time is recent (within 15 minutes), consider it online
-                if (twin.LastActivityTime.HasValue && 
+                if (twin.LastActivityTime.HasValue &&
                     DateTime.UtcNow.Subtract(twin.LastActivityTime.Value).TotalMinutes < 15)
                 {
-                    _connectionStatusCache[deviceId] = DeviceConnectionStatus.Online;
+                    UpdateStatusCache(deviceId, DeviceConnectionStatus.Online);
                     return DeviceConnectionStatus.Online;
                 }
 
@@ -172,18 +185,18 @@ namespace WAT.IoT.Devices.Services
                     var result = await _serviceClient.InvokeDeviceMethodAsync(deviceId, methodInvocation);
                     if (result.Status == 200)
                     {
-                        _connectionStatusCache[deviceId] = DeviceConnectionStatus.Online;
+                        UpdateStatusCache(deviceId, DeviceConnectionStatus.Online);
                         return DeviceConnectionStatus.Online;
                     }
                 }
                 catch
                 {
                     // If ping fails, device is offline
-                    _connectionStatusCache[deviceId] = DeviceConnectionStatus.Offline;
+                    UpdateStatusCache(deviceId, DeviceConnectionStatus.Offline);
                     return DeviceConnectionStatus.Offline;
                 }
 
-                _connectionStatusCache[deviceId] = DeviceConnectionStatus.Unknown;
+                UpdateStatusCache(deviceId, DeviceConnectionStatus.Unknown);
                 return DeviceConnectionStatus.Unknown;
             }
             catch (Exception ex)
@@ -191,6 +204,16 @@ namespace WAT.IoT.Devices.Services
                 _logger.LogError(ex, "Error checking connection status for device {DeviceId}", deviceId);
                 return DeviceConnectionStatus.Unknown;
             }
+        }
+
+        // Add this field at the class level
+        private readonly Dictionary<string, DateTime> _statusCacheUpdateTimes = new Dictionary<string, DateTime>();
+
+        // Helper method to update both the cache and timestamp
+        private void UpdateStatusCache(string deviceId, DeviceConnectionStatus status)
+        {
+            _connectionStatusCache[deviceId] = status;
+            _statusCacheUpdateTimes[deviceId] = DateTime.UtcNow;
         }
 
         public async Task UpdateConnectionStatusCacheAsync(string deviceId, DeviceConnectionStatus status)

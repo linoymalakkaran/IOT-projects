@@ -71,9 +71,10 @@ namespace WAT.IoT.Devices.Helpers
             }
         }
 
-        public static async Task<DeviceClient> CreateDeviceClientFromDpsRegistrationAsync(
-            DeviceRegistrationResult registrationResult,
-            ILogger logger)
+        public static DeviceClient CreateDeviceClientFromDpsRegistrationAsync(
+     DeviceRegistrationResult registrationResult,
+     string symmetricKey,
+     ILogger logger)
         {
             if (registrationResult.Status != ProvisioningRegistrationStatusType.Assigned)
             {
@@ -81,10 +82,10 @@ namespace WAT.IoT.Devices.Helpers
                 throw new InvalidOperationException("Device registration is not in 'Assigned' state");
             }
 
-            // Create the device client from the registration result
+            // Create the device client using the provided symmetric key
             var auth = new DeviceAuthenticationWithRegistrySymmetricKey(
                 registrationResult.DeviceId,
-                registrationResult.ProvisioningDeviceClient?.GetSymmetricKey());
+                symmetricKey);
 
             var deviceClient = DeviceClient.Create(
                 registrationResult.AssignedHub,

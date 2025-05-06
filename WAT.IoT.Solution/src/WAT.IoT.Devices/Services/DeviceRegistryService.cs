@@ -7,6 +7,8 @@ using System.Collections.Concurrent;
 using WAT.IoT.Core.Interfaces;
 using WAT.IoT.Core.Models;
 using WAT.IoT.Devices.Configuration;
+using Newtonsoft.Json.Linq;
+using System.Reflection;
 
 namespace WAT.IoT.Devices.Services
 {
@@ -59,7 +61,7 @@ namespace WAT.IoT.Devices.Services
             try
             {
                 var query = _registryManager.CreateQuery("SELECT * FROM devices", 100);
-                
+
                 while (query.HasMoreResults)
                 {
                     var page = await query.GetNextAsTwinAsync();
@@ -86,15 +88,69 @@ namespace WAT.IoT.Devices.Services
             var devices = new List<DeviceInfo>();
             try
             {
-                var query = _registryManager.CreateQuery($"SELECT * FROM devices WHERE tags.location = '{location}'", 100);
-                
+                // First check if we have devices for this location in cache
+                var cachedDevicesForLocation = _deviceCache.Values
+                    .Where(d => d.Location == location)
+                    .ToList();
+
+                // If we have a significant number of devices already cached, use them
+                if (cachedDevicesForLocation.Count > 50) // Arbitrary threshold
+                {
+                    _logger.LogInformation("Retrieved {Count} devices for location {Location} from cache",
+                        cachedDevicesForLocation.Count, location);
+                    return cachedDevicesForLocation;
+                }
+
+                // Otherwise query IoT Hub
+                _logger.LogInformation("Querying IoT Hub for devices in location {Location}", location);
+
+                // Optimize query to only select necessary fields
+                var query = _registryManager.CreateQuery(
+                    $"SELECT deviceId, status, lastActivityTime, properties.reported.firmwareVersion, " +
+                    $"tags.deviceType, tags.connectionType FROM devices WHERE tags.location = '{location}'",
+                    100);
+
                 while (query.HasMoreResults)
                 {
                     var page = await query.GetNextAsTwinAsync();
                     foreach (var twin in page)
                     {
+                        // Avoid redundant device queries by using a minimal Twin-only approach
+                        var deviceInfo = new DeviceInfo
+                        {
+                            DeviceId = twin.DeviceId,
+                            IsActive = true, // Default, will be updated below
+                            Location = location, // We know this from the query
+                            LastActivityTime = twin.LastActivityTime ?? DateTime.UtcNow
+                        };
+
+                        // Manually check status via device registry only when necessary
                         var device = await _registryManager.GetDeviceAsync(twin.DeviceId);
-                        var deviceInfo = MapToDeviceInfo(device, twin);
+                        if (device != null)
+                        {
+                            deviceInfo.IsActive = device.Status == DeviceStatus.Enabled;
+                        }
+
+                        // Extract other properties - Use the safe Contains method for TwinCollection
+                        if (twin.Tags.Contains("deviceType"))
+                        {
+                            deviceInfo.DeviceType = twin.Tags["deviceType"]?.ToString();
+                        }
+
+                        if (twin.Tags.Contains("connectionType"))
+                        {
+                            deviceInfo.ConnectionType = twin.Tags["connectionType"]?.ToString();
+                        }
+
+                        if (twin.Properties.Reported.Contains("firmwareVersion"))
+                        {
+                            deviceInfo.FirmwareVersion = twin.Properties.Reported["firmwareVersion"]?.ToString();
+                        }
+
+                        deviceInfo.Tags = new Dictionary<string, string>();
+                        // Safe iteration through TwinCollection using dynamic iteration
+                        ExtractTags(twin.Tags, deviceInfo.Tags);
+
                         devices.Add(deviceInfo);
                         _deviceCache[twin.DeviceId] = deviceInfo;
                     }
@@ -117,20 +173,34 @@ namespace WAT.IoT.Devices.Services
                 azureDevice.Status = device.IsActive ? DeviceStatus.Enabled : DeviceStatus.Disabled;
 
                 Device createdDevice = await _registryManager.AddDeviceAsync(azureDevice);
-                
+
                 var twin = new Twin(device.DeviceId);
-                twin.Tags["deviceType"] = device.DeviceType;
-                twin.Tags["location"] = device.Location;
-                twin.Tags["connectionType"] = device.ConnectionType;
-                twin.Properties.Reported["firmwareVersion"] = device.FirmwareVersion;
-                
-                foreach (var tag in device.Tags)
+
+                // Set tag values directly
+                if (!string.IsNullOrEmpty(device.DeviceType))
+                    twin.Tags["deviceType"] = device.DeviceType;
+
+                if (!string.IsNullOrEmpty(device.Location))
+                    twin.Tags["location"] = device.Location;
+
+                if (!string.IsNullOrEmpty(device.ConnectionType))
+                    twin.Tags["connectionType"] = device.ConnectionType;
+
+                // Set reported properties
+                if (!string.IsNullOrEmpty(device.FirmwareVersion))
+                    twin.Properties.Reported["firmwareVersion"] = device.FirmwareVersion;
+
+                // Add custom tags
+                if (device.Tags != null)
                 {
-                    twin.Tags[tag.Key] = tag.Value;
+                    foreach (var tagEntry in device.Tags)
+                    {
+                        twin.Tags[tagEntry.Key] = tagEntry.Value;
+                    }
                 }
 
                 await _registryManager.UpdateTwinAsync(device.DeviceId, twin, twin.ETag);
-                
+
                 _deviceCache[device.DeviceId] = device;
                 return true;
             }
@@ -156,17 +226,23 @@ namespace WAT.IoT.Devices.Services
                 await _registryManager.UpdateDeviceAsync(existingDevice);
 
                 var twin = await _registryManager.GetTwinAsync(device.DeviceId);
+
+                // Update tag values
                 twin.Tags["deviceType"] = device.DeviceType;
                 twin.Tags["location"] = device.Location;
                 twin.Tags["connectionType"] = device.ConnectionType;
-                
-                foreach (var tag in device.Tags)
+
+                // Update custom tags
+                if (device.Tags != null)
                 {
-                   twin.Tags[tag.Key] = tag.Value;
+                    foreach (var tag in device.Tags)
+                    {
+                        twin.Tags[tag.Key] = tag.Value;
+                    }
                 }
 
                 await _registryManager.UpdateTwinAsync(device.DeviceId, twin, twin.ETag);
-                
+
                 _deviceCache[device.DeviceId] = device;
                 return true;
             }
@@ -211,42 +287,70 @@ namespace WAT.IoT.Devices.Services
             }
         }
 
+        // Helper method to extract tags from TwinCollection into a Dictionary
+        private void ExtractTags(TwinCollection twinCollection, Dictionary<string, string> targetDictionary)
+        {
+            if (twinCollection == null)
+                return;
+
+            // TwinCollection doesn't implement IDictionary directly, but we can use reflection to iterate its elements
+            // Convert to JObject for easier iteration as an alternative approach
+            var jsonObject = JObject.Parse(twinCollection.ToJson());
+
+            foreach (var property in jsonObject.Properties())
+            {
+                string tagKey = property.Name;
+                if (tagKey != "deviceType" && tagKey != "location" && tagKey != "connectionType")
+                {
+                    string tagValue = property.Value?.ToString() ?? string.Empty;
+                    targetDictionary[tagKey] = tagValue;
+                }
+            }
+        }
+
         private DeviceInfo MapToDeviceInfo(Device device, Twin twin)
         {
             var deviceInfo = new DeviceInfo
             {
                 DeviceId = device.Id,
                 IsActive = device.Status == DeviceStatus.Enabled,
-                LastActivityTime = device.LastActivityTime ?? DateTime.UtcNow
+                // Handle DateTime safely
+                LastActivityTime = DateTime.UtcNow // Default value
             };
 
+            // Safe handling of LastActivityTime
+            if (device.LastActivityTime != null)
+            {
+                deviceInfo.LastActivityTime = device.LastActivityTime.Date;
+            }
+
+            // Use safe way to access tag values using string indexing
             if (twin.Tags.Contains("deviceType"))
             {
-                deviceInfo.DeviceType = twin.Tags["deviceType"];
+                deviceInfo.DeviceType = twin.Tags["deviceType"]?.ToString();
             }
 
             if (twin.Tags.Contains("location"))
             {
-                deviceInfo.Location = twin.Tags["location"];
+                deviceInfo.Location = twin.Tags["location"]?.ToString();
             }
 
             if (twin.Tags.Contains("connectionType"))
             {
-                deviceInfo.ConnectionType = twin.Tags["connectionType"];
+                deviceInfo.ConnectionType = twin.Tags["connectionType"]?.ToString();
             }
 
+            // Safe way to access reported properties
             if (twin.Properties.Reported.Contains("firmwareVersion"))
             {
-                deviceInfo.FirmwareVersion = twin.Properties.Reported["firmwareVersion"];
+                deviceInfo.FirmwareVersion = twin.Properties.Reported["firmwareVersion"]?.ToString();
             }
 
-            foreach (var tag in twin.Tags)
-            {
-                if (tag.Key != "deviceType" && tag.Key != "location" && tag.Key != "connectionType")
-                {
-                    deviceInfo.Tags[tag.Key] = tag.Value;
-                }
-            }
+            // Initialize the Tags dictionary
+            deviceInfo.Tags = new Dictionary<string, string>();
+
+            // Use helper method to safely extract tags
+            ExtractTags(twin.Tags, deviceInfo.Tags);
 
             return deviceInfo;
         }
